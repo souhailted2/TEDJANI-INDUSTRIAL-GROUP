@@ -1,0 +1,37 @@
+name: tig-management
+
+  services:
+    db:
+      container_name: tig-management-db
+      image: postgres:16-alpine
+      restart: always
+      environment:
+        POSTGRES_DB: tig_management
+        POSTGRES_USER: tig_user
+        POSTGRES_PASSWORD: TigManagement2026SecurePass
+      volumes:
+        - tig_pgdata:/var/lib/postgresql/data
+      healthcheck:
+        test: ["CMD-SHELL", "pg_isready -U tig_user -d tig_management"]
+        interval: 5s
+        timeout: 5s
+        retries: 5
+
+    app:
+      container_name: tig-management-app
+      build: .
+      restart: always
+      ports:
+        - "3002:3002"
+      environment:
+        DATABASE_URL: postgresql://tig_user:TigManagement2026SecurePass@db:5432/tig_management
+        SESSION_SECRET: tig_management_session_2026_secret
+        NODE_ENV: production
+        PORT: "3002"
+      depends_on:
+        db:
+          condition: service_healthy
+
+  volumes:
+    tig_pgdata:
+  
