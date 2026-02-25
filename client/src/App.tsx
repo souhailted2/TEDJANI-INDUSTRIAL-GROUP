@@ -7,7 +7,8 @@ import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/app-sidebar";
 import { useAuth } from "@/hooks/use-auth";
 import { Button } from "@/components/ui/button";
-import { LogOut, Building, User } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { LogOut, Building, User, Factory, Shield } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import NotFound from "@/pages/not-found";
 import Dashboard from "@/pages/dashboard";
@@ -54,20 +55,24 @@ function OperatorApp() {
 
   return (
     <div className="flex flex-col h-screen w-full">
-      <header className="flex items-center justify-between gap-2 p-3 border-b sticky top-0 z-50 bg-background" dir="rtl">
-        <div className="flex items-center gap-2">
-          <div className="flex items-center justify-center w-7 h-7 rounded-md bg-primary/10 text-primary">
-            <User className="w-4 h-4" />
+      <header className="flex items-center justify-between gap-2 px-4 py-3 border-b sticky top-0 z-50 bg-background/95 backdrop-blur-sm" dir="rtl">
+        <div className="flex items-center gap-3">
+          <div className="flex items-center justify-center w-8 h-8 rounded-lg bg-gradient-to-br from-emerald-500 to-emerald-600">
+            <User className="w-4 h-4 text-white" />
           </div>
-          <span className="text-sm font-medium" data-testid="text-operator-name">
-            {user?.name}
-          </span>
+          <div>
+            <span className="text-sm font-semibold" data-testid="text-operator-name">
+              {user?.name}
+            </span>
+            <Badge variant="secondary" className="mr-2 text-[10px] px-1.5 py-0">مشغّل</Badge>
+          </div>
         </div>
         <Button
           size="icon"
           variant="ghost"
           onClick={() => logout()}
           disabled={isLoggingOut}
+          className="text-muted-foreground hover:text-destructive"
           data-testid="button-operator-logout"
         >
           <LogOut className="w-4 h-4" />
@@ -81,11 +86,17 @@ function OperatorApp() {
 }
 
 function AuthenticatedApp() {
-  const { company, user, logout, isLoggingOut } = useAuth();
+  const { company, user, logout, isLoggingOut, isParent } = useAuth();
 
   const style = {
-    "--sidebar-width": "16rem",
+    "--sidebar-width": "17rem",
     "--sidebar-width-icon": "3rem",
+  };
+
+  const getRoleBadge = () => {
+    if (user?.role === "app_user") return <Badge variant="secondary" className="text-[10px] px-1.5 py-0">مستخدم</Badge>;
+    if (isParent) return <Badge className="text-[10px] px-1.5 py-0 bg-amber-500/15 text-amber-700 border-amber-200 hover:bg-amber-500/15">مدير</Badge>;
+    return <Badge variant="secondary" className="text-[10px] px-1.5 py-0">شركة</Badge>;
   };
 
   return (
@@ -93,31 +104,36 @@ function AuthenticatedApp() {
       <div className="flex h-screen w-full">
         <AppSidebar />
         <div className="flex flex-col flex-1 overflow-hidden">
-          <header className="flex items-center justify-between gap-2 p-3 border-b sticky top-0 z-50 bg-background">
+          <header className="flex items-center justify-between gap-2 px-4 py-3 border-b sticky top-0 z-50 bg-background/95 backdrop-blur-sm">
             <SidebarTrigger data-testid="button-sidebar-toggle" />
             <div className="flex items-center gap-3">
               {(company || user?.role === "app_user") && (
-                <div className="flex items-center gap-2">
-                  <div className="flex items-center justify-center w-7 h-7 rounded-md bg-primary/10 text-primary">
-                    {user?.role === "app_user" ? <User className="w-4 h-4" /> : <Building className="w-4 h-4" />}
+                <div className="flex items-center gap-2.5">
+                  <div className="flex items-center justify-center w-8 h-8 rounded-lg bg-gradient-to-br from-emerald-500 to-emerald-600 shadow-sm">
+                    {user?.role === "app_user" ? <Shield className="w-4 h-4 text-white" /> : isParent ? <Factory className="w-4 h-4 text-white" /> : <Building className="w-4 h-4 text-white" />}
                   </div>
-                  <span className="text-sm font-medium hidden sm:inline" data-testid="text-company-name">
-                    {user?.name}
-                  </span>
+                  <div className="hidden sm:flex flex-col items-end">
+                    <span className="text-sm font-semibold leading-tight" data-testid="text-company-name">
+                      {user?.name}
+                    </span>
+                    {getRoleBadge()}
+                  </div>
                 </div>
               )}
+              <div className="w-px h-6 bg-border mx-1" />
               <Button
                 size="icon"
                 variant="ghost"
                 onClick={() => logout()}
                 disabled={isLoggingOut}
+                className="text-muted-foreground hover:text-destructive transition-colors"
                 data-testid="button-logout"
               >
                 <LogOut className="w-4 h-4" />
               </Button>
             </div>
           </header>
-          <main className="flex-1 overflow-auto">
+          <main className="flex-1 overflow-auto bg-muted/30">
             <Router />
           </main>
         </div>
@@ -131,10 +147,12 @@ function AppContent() {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-background">
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-emerald-950 via-emerald-900 to-teal-900">
         <div className="space-y-4 text-center">
-          <Skeleton className="h-12 w-12 rounded-md mx-auto" />
-          <Skeleton className="h-4 w-32 mx-auto" />
+          <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-amber-400 to-amber-500 flex items-center justify-center mx-auto shadow-lg shadow-amber-500/20 animate-pulse">
+            <Factory className="w-7 h-7 text-emerald-950" />
+          </div>
+          <p className="text-emerald-200/70 text-sm">جاري التحميل...</p>
         </div>
       </div>
     );
