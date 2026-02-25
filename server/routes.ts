@@ -26,7 +26,7 @@ function setupSession(app: Express) {
       saveUninitialized: false,
       cookie: {
         httpOnly: true,
-        secure: true,
+        secure: false,
         maxAge: sessionTtl,
       },
     })
