@@ -1,1041 +1,1043 @@
-import { eq, and, sql, desc } from "drizzle-orm";
+import { eq, or, and, gte, lte } from "drizzle-orm";
 import { db } from "./db";
 import {
-  categories, suppliers, warehouses, products, orders, orderItems,
-  deliveries, deliveryItems, containers, containerItems, payments, users, productParts, userCategories,
-  shippingCompanies, shippingPayments, cashboxTransactions, expenses, containerDocuments,
-  type InsertCategory, type Category,
-  type InsertSupplier, type Supplier,
-  type InsertShippingCompany, type ShippingCompany,
-  type InsertWarehouse, type Warehouse,
-  type InsertProduct, type Product,
-  type InsertOrder, type Order,
-  type InsertOrderItem, type OrderItem,
-  type InsertDelivery, type Delivery,
-  type InsertDeliveryItem, type DeliveryItem,
-  type InsertContainer, type Container,
-  type InsertContainerItem, type ContainerItem,
-  type InsertPayment, type Payment,
-  type InsertShippingPayment, type ShippingPayment,
-  type InsertUser, type User,
-  type InsertProductPart, type ProductPart,
-  type UserCategory,
-  type InsertCashboxTransaction, type CashboxTransaction,
-  type InsertExpense, type Expense,
+  companies, transfers, expenses, expenseCategories, memberTypes, members, memberTransfers,
+  externalDebts, debtPayments, trucks, truckExpenses, truckTrips, externalFunds, projects, projectTransactions, operators,
+  factorySettings,
+  workshops, workshopExpenseCategories, workshopExpenses, machines, workers, machineDailyEntries,
+  sparePartsItems, sparePartsPurchases, sparePartsConsumption, rawMaterials, rawMaterialPurchases,
+  workerCompanies, workerTransactions,
+  workShifts, attendanceScans, attendanceDays, holidays, workerWarnings,
+  type FactorySettings,
+  type Company, type Transfer, type InsertTransfer, type Expense, type InsertExpense,
+  type ExpenseCategory, type InsertExpenseCategory, type MemberType, type InsertMemberType,
+  type Member, type InsertMember, type MemberTransfer, type InsertMemberTransfer,
+  type ExternalDebt, type InsertExternalDebt, type DebtPayment, type InsertDebtPayment,
+  type Truck, type InsertTruck, type TruckExpense, type InsertTruckExpense,
+  type TruckTrip, type InsertTruckTrip,
+  type ExternalFund, type InsertExternalFund,
+  type Project, type InsertProject, type ProjectTransaction, type InsertProjectTransaction,
+  type Operator, type InsertOperator,
+  type Workshop, type InsertWorkshop, type WorkshopExpenseCategory, type InsertWorkshopExpenseCategory,
+  type WorkshopExpense, type InsertWorkshopExpense, type Machine, type InsertMachine,
+  type Worker, type InsertWorker, type MachineDailyEntry, type InsertMachineDailyEntry,
+  type SparePartItem, type InsertSparePartItem, type SparePartPurchase, type InsertSparePartPurchase,
+  type SparePartConsumption, type InsertSparePartConsumption,
+  type RawMaterial, type InsertRawMaterial, type RawMaterialPurchase, type InsertRawMaterialPurchase,
+  appUsers, type AppUser, type InsertAppUser,
+  type WorkerCompany, type InsertWorkerCompany, type WorkerTransaction, type InsertWorkerTransaction,
+  type WorkShift, type InsertWorkShift, type AttendanceScan, type InsertAttendanceScan,
+  type AttendanceDay, type InsertAttendanceDay, type Holiday, type InsertHoliday,
+  type WorkerWarning, type InsertWorkerWarning,
 } from "@shared/schema";
 
 export interface IStorage {
-  getCategories(): Promise<Category[]>;
-  createCategory(data: InsertCategory): Promise<Category>;
-  updateCategory(id: number, data: Partial<InsertCategory>): Promise<Category | undefined>;
-  getSuppliers(): Promise<Supplier[]>;
-  createSupplier(data: InsertSupplier): Promise<Supplier>;
-  getShippingCompanies(): Promise<ShippingCompany[]>;
-  createShippingCompany(data: InsertShippingCompany): Promise<ShippingCompany>;
-  updateShippingCompany(id: number, data: Partial<InsertShippingCompany>): Promise<ShippingCompany | undefined>;
-  deleteShippingCompany(id: number): Promise<void>;
-  getWarehouses(): Promise<Warehouse[]>;
-  createWarehouse(data: InsertWarehouse): Promise<Warehouse>;
-  getProducts(): Promise<Product[]>;
-  getProductsByStatus(status: string): Promise<Product[]>;
-  createProduct(data: InsertProduct): Promise<Product>;
-  updateProductStatus(id: number, status: string): Promise<Product | undefined>;
-  getOrders(): Promise<any[]>;
-  createOrder(supplierId: number, items: any[]): Promise<Order>;
-  updateOrderItem(itemId: number, data: any): Promise<any>;
-  getSupplierOrderedItems(supplierId: number): Promise<any[]>;
-  createDelivery(supplierId: number, warehouseId: number, items: any[]): Promise<Delivery>;
-  getDeliveries(): Promise<any[]>;
-  getContainers(): Promise<any[]>;
-  createContainer(data: any, items: any[]): Promise<Container>;
-  updateContainer(id: number, data: any): Promise<Container | undefined>;
-  markContainerArrived(containerId: number): Promise<Container | undefined>;
-  updateProduct(id: number, data: Partial<InsertProduct>): Promise<Product | undefined>;
-  deleteProduct(id: number): Promise<void>;
-  updateSupplier(id: number, data: Partial<InsertSupplier>): Promise<Supplier | undefined>;
-  deleteSupplier(id: number): Promise<void>;
-  deleteCategory(id: number): Promise<void>;
-  getSupplierAccount(supplierId: number): Promise<any>;
-  getShippingCompanyAccount(companyId: number): Promise<any>;
-  getDashboardSummary(): Promise<any>;
-  createPayment(data: InsertPayment): Promise<Payment>;
-  updatePayment(id: number, data: Partial<InsertPayment>): Promise<Payment | undefined>;
-  deletePayment(id: number): Promise<void>;
-  createShippingPayment(data: InsertShippingPayment): Promise<ShippingPayment>;
-  updateShippingPayment(id: number, data: Partial<InsertShippingPayment>): Promise<ShippingPayment | undefined>;
-  deleteShippingPayment(id: number): Promise<void>;
-  getProductParts(productId: number): Promise<ProductPart[]>;
-  createProductPart(data: InsertProductPart): Promise<ProductPart>;
-  deleteProductPart(id: number): Promise<void>;
-  getWarehouseInventory(): Promise<any[]>;
-  getUserByUsername(username: string): Promise<User | undefined>;
-  getUserById(id: number): Promise<User | undefined>;
-  createUser(data: InsertUser): Promise<User>;
-  updateUser(id: number, data: Partial<{ username: string; password: string; displayName: string }>): Promise<User | undefined>;
-  getUsers(): Promise<User[]>;
-  getUserCategories(userId: number): Promise<number[]>;
-  setUserCategories(userId: number, categoryIds: number[]): Promise<void>;
-  getCashboxTransactions(): Promise<any[]>;
-  getCashboxSummary(): Promise<any>;
-  createCashboxTransaction(data: InsertCashboxTransaction): Promise<CashboxTransaction>;
-  updateCashboxTransaction(id: number, data: Partial<InsertCashboxTransaction>): Promise<CashboxTransaction | undefined>;
-  deleteCashboxTransaction(id: number): Promise<void>;
+  getCompanies(): Promise<Company[]>;
+  getCompany(id: string): Promise<Company | undefined>;
+  getCompanyByUsername(username: string): Promise<Company | undefined>;
+  createCompany(company: Omit<Company, "id">): Promise<Company>;
+  updateCompany(id: string, data: Partial<Pick<Company, "name" | "username" | "password" | "phone">>): Promise<Company | undefined>;
+  deleteCompany(id: string): Promise<void>;
+  updateCompanyBalance(id: string, balance: string): Promise<Company | undefined>;
+  updateCompanyDebt(id: string, debtToParent: string): Promise<Company | undefined>;
+
+  getTransfers(): Promise<Transfer[]>;
+  getTransfer(id: string): Promise<Transfer | undefined>;
+  createTransfer(transfer: InsertTransfer): Promise<Transfer>;
+  updateTransferStatus(id: string, status: string): Promise<Transfer | undefined>;
+
+  getExpenseCategories(): Promise<ExpenseCategory[]>;
+  createExpenseCategory(cat: InsertExpenseCategory): Promise<ExpenseCategory>;
+  deleteExpenseCategory(id: string): Promise<void>;
+
   getExpenses(): Promise<Expense[]>;
-  createExpense(data: InsertExpense): Promise<Expense>;
-  updateExpense(id: number, data: Partial<InsertExpense>): Promise<Expense | undefined>;
-  deleteExpense(id: number): Promise<void>;
-  getCashboxByExpenseId(expenseId: number): Promise<CashboxTransaction | undefined>;
-  deleteCashboxByExpenseId(expenseId: number): Promise<void>;
-  updateCashboxByExpenseId(expenseId: number, data: Partial<InsertCashboxTransaction>): Promise<CashboxTransaction | undefined>;
-  getContainerDocuments(): Promise<any[]>;
-  getContainerDocument(id: number): Promise<any>;
-  updateContainerDocument(id: number, data: any): Promise<any>;
+  getExpense(id: string): Promise<Expense | undefined>;
+  createExpense(expense: InsertExpense): Promise<Expense>;
+  updateExpense(id: string, data: Partial<InsertExpense>): Promise<Expense | undefined>;
+  deleteExpense(id: string): Promise<void>;
+
+  getMemberTypes(): Promise<MemberType[]>;
+  createMemberType(mt: InsertMemberType): Promise<MemberType>;
+  deleteMemberType(id: string): Promise<void>;
+
+  getMembers(): Promise<Member[]>;
+  getMember(id: string): Promise<Member | undefined>;
+  createMember(member: InsertMember): Promise<Member>;
+  updateMember(id: string, data: Partial<Pick<Member, "name" | "phone" | "typeId">>): Promise<Member | undefined>;
+  deleteMember(id: string): Promise<void>;
+  updateMemberBalance(id: string, balance: string): Promise<Member | undefined>;
+
+  getMemberTransfers(): Promise<MemberTransfer[]>;
+  getMemberTransfersByMember(memberId: string): Promise<MemberTransfer[]>;
+  createMemberTransfer(mt: InsertMemberTransfer): Promise<MemberTransfer>;
+  deleteMemberTransfer(id: string): Promise<void>;
+  getMemberTransfer(id: string): Promise<MemberTransfer | undefined>;
+
+  getExternalDebts(): Promise<ExternalDebt[]>;
+  getExternalDebt(id: string): Promise<ExternalDebt | undefined>;
+  createExternalDebt(debt: InsertExternalDebt): Promise<ExternalDebt>;
+  updateExternalDebt(id: string, data: Partial<Pick<ExternalDebt, "personName" | "phone" | "note" | "totalAmount" | "paidAmount">>): Promise<ExternalDebt | undefined>;
+  deleteExternalDebt(id: string): Promise<void>;
+
+  getDebtPayments(debtId: string): Promise<DebtPayment[]>;
+  getAllDebtPayments(): Promise<DebtPayment[]>;
+  getDebtPayment(id: string): Promise<DebtPayment | undefined>;
+  createDebtPayment(payment: InsertDebtPayment): Promise<DebtPayment>;
+  deleteDebtPayment(id: string): Promise<void>;
+
+  getTrucks(): Promise<Truck[]>;
+  getTruck(id: string): Promise<Truck | undefined>;
+  createTruck(truck: InsertTruck): Promise<Truck>;
+  updateTruck(id: string, data: Partial<Pick<Truck, "number" | "driverName" | "fuelFormula" | "driverWage" | "driverCommissionRate">>): Promise<Truck | undefined>;
+  updateTruckBalance(id: string, balance: string): Promise<Truck | undefined>;
+  deleteTruck(id: string): Promise<void>;
+
+  getTruckExpenses(truckId: string): Promise<TruckExpense[]>;
+  getAllTruckExpenses(): Promise<TruckExpense[]>;
+  getTruckExpense(id: string): Promise<TruckExpense | undefined>;
+  createTruckExpense(expense: InsertTruckExpense): Promise<TruckExpense>;
+  deleteTruckExpense(id: string): Promise<void>;
+
+  getTruckTrips(truckId: string): Promise<TruckTrip[]>;
+  getAllTruckTrips(): Promise<TruckTrip[]>;
+  getTruckTrip(id: string): Promise<TruckTrip | undefined>;
+  getLastTruckTrip(truckId: string): Promise<TruckTrip | undefined>;
+  createTruckTrip(trip: InsertTruckTrip): Promise<TruckTrip>;
+  updateTruckTrip(id: string, data: Partial<InsertTruckTrip>): Promise<TruckTrip | undefined>;
+  deleteTruckTrip(id: string): Promise<void>;
+
+  getExternalFunds(): Promise<ExternalFund[]>;
+  getExternalFund(id: string): Promise<ExternalFund | undefined>;
+  createExternalFund(fund: InsertExternalFund): Promise<ExternalFund>;
+  deleteExternalFund(id: string): Promise<void>;
+
+  getProjects(): Promise<Project[]>;
+  getProject(id: string): Promise<Project | undefined>;
+  createProject(project: InsertProject): Promise<Project>;
+  updateProjectBalance(id: string, balance: string): Promise<Project | undefined>;
+  deleteProject(id: string): Promise<void>;
+
+  getProjectTransactions(projectId: string): Promise<ProjectTransaction[]>;
+  getAllProjectTransactions(): Promise<ProjectTransaction[]>;
+  getProjectTransaction(id: string): Promise<ProjectTransaction | undefined>;
+  createProjectTransaction(tx: InsertProjectTransaction): Promise<ProjectTransaction>;
+  deleteProjectTransaction(id: string): Promise<void>;
+
+  getOperators(): Promise<Operator[]>;
+  getOperator(id: string): Promise<Operator | undefined>;
+  getOperatorByUsername(username: string): Promise<Operator | undefined>;
+  createOperator(op: InsertOperator): Promise<Operator>;
+  deleteOperator(id: string): Promise<void>;
+
+  getFactorySettings(): Promise<FactorySettings>;
+  updateFactoryBalance(balance: string): Promise<FactorySettings>;
+
+  getWorkshops(): Promise<Workshop[]>;
+  getWorkshop(id: string): Promise<Workshop | undefined>;
+  createWorkshop(ws: InsertWorkshop): Promise<Workshop>;
+  deleteWorkshop(id: string): Promise<void>;
+
+  getWorkshopExpenseCategories(): Promise<WorkshopExpenseCategory[]>;
+  createWorkshopExpenseCategory(cat: InsertWorkshopExpenseCategory): Promise<WorkshopExpenseCategory>;
+  deleteWorkshopExpenseCategory(id: string): Promise<void>;
+
+  getWorkshopExpenses(workshopId: string): Promise<WorkshopExpense[]>;
+  getAllWorkshopExpenses(): Promise<WorkshopExpense[]>;
+  getWorkshopExpense(id: string): Promise<WorkshopExpense | undefined>;
+  createWorkshopExpense(exp: InsertWorkshopExpense): Promise<WorkshopExpense>;
+  deleteWorkshopExpense(id: string): Promise<void>;
+
+  getMachines(): Promise<Machine[]>;
+  getMachinesByWorkshop(workshopId: string): Promise<Machine[]>;
+  getMachine(id: string): Promise<Machine | undefined>;
+  createMachine(machine: InsertMachine): Promise<Machine>;
+  deleteMachine(id: string): Promise<void>;
+
+  getWorkerCompanies(): Promise<WorkerCompany[]>;
+  createWorkerCompany(data: InsertWorkerCompany): Promise<WorkerCompany>;
+  deleteWorkerCompany(id: string): Promise<void>;
+
+  getWorkers(): Promise<Worker[]>;
+  getWorker(id: string): Promise<Worker | undefined>;
+  createWorker(worker: InsertWorker): Promise<Worker>;
+  updateWorker(id: string, data: Partial<InsertWorker>): Promise<Worker | undefined>;
+  updateWorkerBalance(id: string, balance: string): Promise<Worker | undefined>;
+  deleteWorker(id: string): Promise<void>;
+
+  getWorkerTransactions(workerId: string): Promise<WorkerTransaction[]>;
+  createWorkerTransaction(data: InsertWorkerTransaction): Promise<WorkerTransaction>;
+  deleteWorkerTransaction(id: string): Promise<WorkerTransaction | undefined>;
+
+  getWorkShifts(): Promise<WorkShift[]>;
+  getWorkShift(id: string): Promise<WorkShift | undefined>;
+  createWorkShift(shift: InsertWorkShift): Promise<WorkShift>;
+  deleteWorkShift(id: string): Promise<void>;
+
+  getAttendanceScans(workerId: string): Promise<AttendanceScan[]>;
+  createAttendanceScan(scan: InsertAttendanceScan): Promise<AttendanceScan>;
+  getAttendanceDays(workerId: string, startDate?: string, endDate?: string): Promise<AttendanceDay[]>;
+  getAllAttendanceDays(startDate?: string, endDate?: string): Promise<AttendanceDay[]>;
+  getAttendanceDay(workerId: string, date: string): Promise<AttendanceDay | undefined>;
+  upsertAttendanceDay(data: InsertAttendanceDay): Promise<AttendanceDay>;
+  deleteAttendanceDay(id: string): Promise<void>;
+
+  getHolidays(): Promise<Holiday[]>;
+  createHoliday(holiday: InsertHoliday): Promise<Holiday>;
+  deleteHoliday(id: string): Promise<void>;
+
+  getWorkerWarnings(workerId: string): Promise<WorkerWarning[]>;
+  getAllWorkerWarnings(startDate?: string, endDate?: string): Promise<WorkerWarning[]>;
+  createWorkerWarning(warning: InsertWorkerWarning): Promise<WorkerWarning>;
+  deleteWorkerWarning(id: string): Promise<void>;
+
+  getMachineDailyEntries(machineId: string): Promise<MachineDailyEntry[]>;
+  getAllMachineDailyEntries(): Promise<MachineDailyEntry[]>;
+  getMachineDailyEntry(id: string): Promise<MachineDailyEntry | undefined>;
+  createMachineDailyEntry(entry: InsertMachineDailyEntry): Promise<MachineDailyEntry>;
+  deleteMachineDailyEntry(id: string): Promise<void>;
+
+  getSparePartItems(): Promise<SparePartItem[]>;
+  getSparePartItem(id: string): Promise<SparePartItem | undefined>;
+  createSparePartItem(item: InsertSparePartItem): Promise<SparePartItem>;
+  updateSparePartQuantity(id: string, quantity: string): Promise<SparePartItem | undefined>;
+  deleteSparePartItem(id: string): Promise<void>;
+
+  getSparePartPurchases(sparePartId: string): Promise<SparePartPurchase[]>;
+  getAllSparePartPurchases(): Promise<SparePartPurchase[]>;
+  createSparePartPurchase(purchase: InsertSparePartPurchase): Promise<SparePartPurchase>;
+  deleteSparePartPurchase(id: string): Promise<void>;
+
+  getSparePartConsumptions(machineId: string): Promise<SparePartConsumption[]>;
+  getAllSparePartConsumptions(): Promise<SparePartConsumption[]>;
+  createSparePartConsumption(consumption: InsertSparePartConsumption): Promise<SparePartConsumption>;
+  deleteSparePartConsumption(id: string): Promise<void>;
+
+  getRawMaterials(): Promise<RawMaterial[]>;
+  getRawMaterial(id: string): Promise<RawMaterial | undefined>;
+  createRawMaterial(material: InsertRawMaterial): Promise<RawMaterial>;
+  updateRawMaterialQuantity(id: string, quantity: string): Promise<RawMaterial | undefined>;
+  deleteRawMaterial(id: string): Promise<void>;
+
+  getRawMaterialPurchases(rawMaterialId: string): Promise<RawMaterialPurchase[]>;
+  getAllRawMaterialPurchases(): Promise<RawMaterialPurchase[]>;
+  createRawMaterialPurchase(purchase: InsertRawMaterialPurchase): Promise<RawMaterialPurchase>;
+  deleteRawMaterialPurchase(id: string): Promise<void>;
+
+  getAppUsers(): Promise<AppUser[]>;
+  getAppUser(id: string): Promise<AppUser | undefined>;
+  getAppUserByUsername(username: string): Promise<AppUser | undefined>;
+  createAppUser(user: InsertAppUser): Promise<AppUser>;
+  updateAppUser(id: string, data: Partial<InsertAppUser>): Promise<AppUser | undefined>;
+  deleteAppUser(id: string): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
-  async getCategories(): Promise<Category[]> {
-    return db.select().from(categories);
+  async getCompanies(): Promise<Company[]> {
+    return db.select().from(companies);
   }
 
-  async createCategory(data: InsertCategory): Promise<Category> {
-    const [cat] = await db.insert(categories).values(data).returning();
-    return cat;
+  async getCompany(id: string): Promise<Company | undefined> {
+    const [company] = await db.select().from(companies).where(eq(companies.id, id));
+    return company;
   }
 
-  async updateCategory(id: number, data: Partial<InsertCategory>): Promise<Category | undefined> {
-    const [cat] = await db.update(categories).set(data).where(eq(categories.id, id)).returning();
-    return cat;
+  async getCompanyByUsername(username: string): Promise<Company | undefined> {
+    const [company] = await db.select().from(companies).where(eq(companies.username, username));
+    return company;
   }
 
-  async getSuppliers(): Promise<Supplier[]> {
-    return db.select().from(suppliers);
+  async createCompany(company: Omit<Company, "id">): Promise<Company> {
+    const [created] = await db.insert(companies).values(company).returning();
+    return created;
   }
 
-  async createSupplier(data: InsertSupplier): Promise<Supplier> {
-    const [sup] = await db.insert(suppliers).values(data).returning();
-    return sup;
-  }
-
-  async getShippingCompanies(): Promise<ShippingCompany[]> {
-    return db.select().from(shippingCompanies);
-  }
-
-  async createShippingCompany(data: InsertShippingCompany): Promise<ShippingCompany> {
-    const [sc] = await db.insert(shippingCompanies).values(data).returning();
-    return sc;
-  }
-
-  async updateShippingCompany(id: number, data: Partial<InsertShippingCompany>): Promise<ShippingCompany | undefined> {
-    const [updated] = await db.update(shippingCompanies).set(data).where(eq(shippingCompanies.id, id)).returning();
-    return updated;
-  }
-
-  async deleteShippingCompany(id: number): Promise<void> {
-    const relatedContainers = await db.select().from(containers).where(eq(containers.shippingCompanyId, id));
-    const relatedPayments = await db.select().from(shippingPayments).where(eq(shippingPayments.shippingCompanyId, id));
-    if (relatedContainers.length > 0 || relatedPayments.length > 0) {
-      throw new Error("لا يمكن حذف شركة الشحن لوجود عمليات مرتبطة بها");
-    }
-    await db.delete(shippingCompanies).where(eq(shippingCompanies.id, id));
-  }
-
-  async getWarehouses(): Promise<Warehouse[]> {
-    return db.select().from(warehouses);
-  }
-
-  async createWarehouse(data: InsertWarehouse): Promise<Warehouse> {
-    const [wh] = await db.insert(warehouses).values(data).returning();
-    return wh;
-  }
-
-  async updateWarehouse(id: number, data: Partial<InsertWarehouse>): Promise<Warehouse | undefined> {
-    const [updated] = await db.update(warehouses).set(data).where(eq(warehouses.id, id)).returning();
-    return updated;
-  }
-
-  async deleteWarehouse(id: number): Promise<void> {
-    const relatedDeliveries = await db.select().from(deliveries).where(eq(deliveries.warehouseId, id));
-    const relatedContainers = await db.select().from(containers).where(eq(containers.warehouseId, id));
-    if (relatedDeliveries.length > 0 || relatedContainers.length > 0) {
-      throw new Error("لا يمكن حذف المخزن لوجود تسليمات أو حاويات مرتبطة به");
-    }
-    await db.delete(warehouses).where(eq(warehouses.id, id));
-  }
-
-  async getProducts(): Promise<Product[]> {
-    return db.select().from(products);
-  }
-
-  async getProductsByStatus(status: string): Promise<Product[]> {
-    return db.select().from(products).where(eq(products.status, status as any));
-  }
-
-  async createProduct(data: InsertProduct): Promise<Product> {
-    const existing = await db.select().from(products)
-      .where(and(eq(products.name, data.name), eq(products.status, "purchase_order")));
-    if (existing.length > 0) {
-      const old = existing[0];
-      const newQty = (old.quantity || 0) + (data.quantity || 0);
-      const [updated] = await db.update(products).set({ quantity: newQty }).where(eq(products.id, old.id)).returning();
-      return updated;
-    }
-    const [prod] = await db.insert(products).values({
-      ...data,
-      status: data.status || "purchase_order",
-    }).returning();
-    return prod;
-  }
-
-  async updateProductStatus(id: number, status: string): Promise<Product | undefined> {
-    const [prod] = await db.update(products)
-      .set({ status: status as any, statusChangedAt: new Date() })
-      .where(eq(products.id, id))
+  async updateCompany(id: string, data: Partial<Pick<Company, "name" | "username" | "password" | "phone">>): Promise<Company | undefined> {
+    const [updated] = await db
+      .update(companies)
+      .set(data)
+      .where(eq(companies.id, id))
       .returning();
-    return prod;
-  }
-
-  async updateProduct(id: number, data: Partial<InsertProduct>): Promise<Product | undefined> {
-    const [updated] = await db.update(products).set(data).where(eq(products.id, id)).returning();
     return updated;
   }
 
-  async deleteProduct(id: number): Promise<void> {
-    await db.delete(orderItems).where(eq(orderItems.productId, id));
-    await db.delete(deliveryItems).where(eq(deliveryItems.productId, id));
-    await db.delete(containerItems).where(eq(containerItems.productId, id));
-    await db.delete(productParts).where(eq(productParts.productId, id));
-    await db.delete(products).where(eq(products.id, id));
+  async deleteCompany(id: string): Promise<void> {
+    await db.delete(transfers).where(
+      or(eq(transfers.fromCompanyId, id), eq(transfers.toCompanyId, id))
+    );
+    await db.delete(companies).where(eq(companies.id, id));
   }
 
-  async updateSupplier(id: number, data: Partial<InsertSupplier>): Promise<Supplier | undefined> {
-    const [updated] = await db.update(suppliers).set(data).where(eq(suppliers.id, id)).returning();
-    return updated;
-  }
-
-  async deleteSupplier(id: number): Promise<void> {
-    const relatedOrders = await db.select().from(orders).where(eq(orders.supplierId, id));
-    const relatedDeliveries = await db.select().from(deliveries).where(eq(deliveries.supplierId, id));
-    const relatedPayments = await db.select().from(payments).where(eq(payments.supplierId, id));
-    if (relatedOrders.length > 0 || relatedDeliveries.length > 0 || relatedPayments.length > 0) {
-      throw new Error("لا يمكن حذف المورد لوجود عمليات مرتبطة به (طلبات، تسليمات، أو دفعات)");
-    }
-    await db.delete(suppliers).where(eq(suppliers.id, id));
-  }
-
-  async deleteCategory(id: number): Promise<void> {
-    const relatedProducts = await db.select().from(products).where(eq(products.categoryId, id));
-    if (relatedProducts.length > 0) {
-      throw new Error("لا يمكن حذف الفئة لوجود منتجات مرتبطة بها");
-    }
-    await db.delete(categories).where(eq(categories.id, id));
-  }
-
-  async getOrders(): Promise<any[]> {
-    const allOrders = await db.select().from(orders).orderBy(desc(orders.id));
-    const result = [];
-    for (const order of allOrders) {
-      const items = await db.select().from(orderItems).where(eq(orderItems.orderId, order.id));
-      const sup = await db.select().from(suppliers).where(eq(suppliers.id, order.supplierId));
-      const enrichedItems = [];
-      for (const item of items) {
-        const prods = await db.select().from(products).where(eq(products.id, item.productId));
-        enrichedItems.push({
-          ...item,
-          productName: prods[0]?.name || `منتج #${item.productId}`,
-          productNameZh: prods[0]?.nameZh || null,
-        });
-      }
-      result.push({
-        ...order,
-        supplierName: sup[0]?.name || "",
-        items: enrichedItems,
-      });
-    }
-    return result;
-  }
-
-  async createOrder(supplierId: number, items: any[]): Promise<Order> {
-    const [order] = await db.insert(orders).values({
-      supplierId,
-      confirmed: "confirmed",
-    }).returning();
-
-    for (const item of items) {
-      await db.insert(orderItems).values({
-        orderId: order.id,
-        productId: item.productId,
-        quantityRequested: item.quantityRequested,
-        quantityOrdered: item.quantityOrdered,
-        price: item.price,
-        currency: item.currency,
-      });
-
-      const [prod] = await db.select().from(products).where(eq(products.id, item.productId));
-      if (prod) {
-        const remaining = prod.quantity - item.quantityOrdered;
-        if (remaining <= 0) {
-          await db.update(products)
-            .set({ status: "ordered", statusChangedAt: new Date(), quantity: item.quantityOrdered })
-            .where(eq(products.id, item.productId));
-        } else {
-          await db.update(products)
-            .set({ status: "ordered", statusChangedAt: new Date(), quantity: item.quantityOrdered })
-            .where(eq(products.id, item.productId));
-
-          const [newProd] = await db.insert(products).values({
-            name: prod.name,
-            quantity: remaining,
-            categoryId: prod.categoryId,
-            status: "purchase_order",
-            statusChangedAt: new Date(),
-          }).returning();
-
-          if (prod.status === "semi_manufactured") {
-            const existingParts = await db.select().from(productParts).where(eq(productParts.productId, item.productId));
-            for (const part of existingParts) {
-              await db.insert(productParts).values({
-                productId: newProd.id,
-                name: part.name,
-                quantity: part.quantity,
-                length: part.length,
-                width: part.width,
-                height: part.height,
-                weight: part.weight,
-                piecesPerCarton: part.piecesPerCarton,
-              });
-            }
-          }
-        }
-      }
-    }
-
-    return order;
-  }
-
-  async updateOrderItem(itemId: number, data: any): Promise<any> {
-    const updateData: Record<string, any> = {};
-    if (data.quantityRequested !== undefined) updateData.quantityRequested = data.quantityRequested;
-    if (data.quantityOrdered !== undefined) updateData.quantityOrdered = data.quantityOrdered;
-    if (data.price !== undefined) updateData.price = data.price;
-    if (data.currency !== undefined) updateData.currency = data.currency;
-    const [updated] = await db.update(orderItems).set(updateData).where(eq(orderItems.id, itemId)).returning();
-    return updated;
-  }
-
-  async getSupplierOrderedItems(supplierId: number): Promise<any[]> {
-    const supplierOrders = await db.select().from(orders)
-      .where(and(eq(orders.supplierId, supplierId), eq(orders.confirmed, "confirmed")));
-
-    const result = [];
-    for (const order of supplierOrders) {
-      const items = await db.select().from(orderItems).where(eq(orderItems.orderId, order.id));
-      for (const item of items) {
-        const prods = await db.select().from(products).where(eq(products.id, item.productId));
-        if (prods[0] && (prods[0].status === "ordered" || prods[0].status === "semi_manufactured")) {
-          const parts = prods[0].status === "semi_manufactured"
-            ? await db.select().from(productParts).where(eq(productParts.productId, item.productId))
-            : [];
-          result.push({
-            ...item,
-            productName: prods[0].name,
-            productNameZh: prods[0].nameZh || null,
-            productStatus: prods[0].status,
-            parts,
-          });
-        }
-      }
-    }
-    return result;
-  }
-
-  async createDelivery(supplierId: number, warehouseId: number, items: any[]): Promise<Delivery> {
-    const [delivery] = await db.insert(deliveries).values({
-      supplierId,
-      warehouseId,
-    }).returning();
-
-    for (const item of items) {
-      if (!item.quantity || item.quantity <= 0) continue;
-
-      await db.insert(deliveryItems).values({
-        deliveryId: delivery.id,
-        productId: item.productId,
-        quantity: item.quantity,
-        price: item.price,
-        currency: item.currency,
-        length: item.length,
-        width: item.width,
-        height: item.height,
-        weight: item.weight,
-        piecesPerCarton: item.piecesPerCarton,
-      });
-
-      const [prod] = await db.select().from(products).where(eq(products.id, item.productId));
-      const orderedQty = prod?.quantity || 0;
-      const receivedQty = item.quantity || 0;
-      const remaining = orderedQty - receivedQty;
-
-      const newStatus = prod.status === "semi_manufactured" ? "semi_manufactured" : "received";
-      await db.update(products)
-        .set({ status: newStatus, statusChangedAt: new Date(), quantity: receivedQty })
-        .where(eq(products.id, item.productId));
-
-      if (item.parts && Array.isArray(item.parts) && prod.status === "semi_manufactured") {
-        await db.delete(productParts).where(eq(productParts.productId, item.productId));
-        for (const part of item.parts) {
-          if (!part.name) continue;
-          await db.insert(productParts).values({
-            productId: item.productId,
-            name: part.name,
-            quantity: part.quantity || 0,
-            length: part.length || null,
-            width: part.width || null,
-            height: part.height || null,
-            weight: part.weight || null,
-            piecesPerCarton: part.piecesPerCarton || null,
-          });
-        }
-      }
-
-      if (remaining > 0) {
-        const [newProd] = await db.insert(products).values({
-          name: prod.name,
-          quantity: remaining,
-          categoryId: prod.categoryId,
-          status: "ordered",
-          statusChangedAt: new Date(),
-        }).returning();
-
-        if (prod.status === "semi_manufactured") {
-          const existingParts = await db.select().from(productParts).where(eq(productParts.productId, item.productId));
-          for (const part of existingParts) {
-            await db.insert(productParts).values({
-              productId: newProd.id,
-              name: part.name,
-              quantity: part.quantity,
-              length: part.length,
-              width: part.width,
-              height: part.height,
-              weight: part.weight,
-              piecesPerCarton: part.piecesPerCarton,
-            });
-          }
-        }
-      }
-    }
-
-    return delivery;
-  }
-
-  async getDeliveries(): Promise<any[]> {
-    const allDeliveries = await db.select().from(deliveries);
-    const result = [];
-    for (const del of allDeliveries) {
-      const sup = await db.select().from(suppliers).where(eq(suppliers.id, del.supplierId));
-      const wh = await db.select().from(warehouses).where(eq(warehouses.id, del.warehouseId));
-      const items = await db.select().from(deliveryItems).where(eq(deliveryItems.deliveryId, del.id));
-      const enrichedItems = [];
-      for (const item of items) {
-        const prods = await db.select().from(products).where(eq(products.id, item.productId));
-        enrichedItems.push({
-          ...item,
-          productName: prods[0]?.name || `منتج #${item.productId}`,
-          productNameZh: prods[0]?.nameZh || null,
-        });
-      }
-      result.push({
-        ...del,
-        supplierName: sup[0]?.name || "",
-        warehouseName: wh[0]?.name || "",
-        items: enrichedItems,
-      });
-    }
-    return result;
-  }
-
-  async getContainers(): Promise<any[]> {
-    const allContainers = await db.select().from(containers);
-    const result = [];
-    for (const cont of allContainers) {
-      const wh = cont.warehouseId ? await db.select().from(warehouses).where(eq(warehouses.id, cont.warehouseId)) : [];
-      const sc = cont.shippingCompanyId ? await db.select().from(shippingCompanies).where(eq(shippingCompanies.id, cont.shippingCompanyId)) : [];
-      const cItems = await db.select().from(containerItems).where(eq(containerItems.containerId, cont.id));
-      const enrichedItems = [];
-      for (const item of cItems) {
-        const prods = await db.select().from(products).where(eq(products.id, item.productId));
-        enrichedItems.push({
-          ...item,
-          productName: prods[0]?.name || `منتج #${item.productId}`,
-          productNameZh: prods[0]?.nameZh || null,
-        });
-      }
-      result.push({
-        ...cont,
-        warehouseName: wh[0]?.name || "",
-        shippingCompanyName: sc[0]?.name || cont.shippingCompany || "",
-        items: enrichedItems,
-      });
-    }
-    return result;
-  }
-
-  async createContainer(data: any, items: any[]): Promise<Container> {
-    const [container] = await db.insert(containers).values({
-      invoiceNumber: data.invoiceNumber,
-      containerNumber: data.containerNumber,
-      shippingCompany: data.shippingCompany,
-      shippingCompanyId: data.shippingCompanyId || null,
-      priceCNY: data.priceCNY || 0,
-      priceUSD: data.priceUSD || 0,
-      warehouseId: data.warehouseId,
-      status: "shipping",
-    }).returning();
-
-    for (const item of items) {
-      const [prod] = await db.select().from(products).where(eq(products.id, item.productId));
-      if (!prod || (prod.status !== "received" && prod.status !== "semi_manufactured")) continue;
-
-      const shippedQty = item.quantity || prod.quantity;
-      const remaining = (prod.quantity || 0) - shippedQty;
-
-      await db.insert(containerItems).values({
-        containerId: container.id,
-        productId: item.productId,
-        quantity: shippedQty,
-      });
-
-      await db.update(products)
-        .set({ status: "shipping", statusChangedAt: new Date(), quantity: shippedQty })
-        .where(eq(products.id, item.productId));
-
-      if (remaining > 0) {
-        const [newProd] = await db.insert(products).values({
-          name: prod.name,
-          quantity: remaining,
-          categoryId: prod.categoryId,
-          status: prod.status as any,
-          statusChangedAt: new Date(),
-        }).returning();
-
-        if (prod.status === "semi_manufactured") {
-          const existingParts = await db.select().from(productParts).where(eq(productParts.productId, item.productId));
-          for (const part of existingParts) {
-            await db.insert(productParts).values({
-              productId: newProd.id,
-              name: part.name,
-              quantity: part.quantity,
-              length: part.length,
-              width: part.width,
-              height: part.height,
-              weight: part.weight,
-              piecesPerCarton: part.piecesPerCarton,
-            });
-          }
-        }
-      }
-    }
-
-    const docInvoiceNumber = container.invoiceNumber || container.containerNumber || String(container.id);
-
-    const existingDoc = await db.select().from(containerDocuments)
-      .where(eq(containerDocuments.invoiceNumber, docInvoiceNumber));
-
-    if (existingDoc.length > 0 && container.invoiceNumber) {
-      const groupId = existingDoc[0].groupInvoiceId || existingDoc[0].id;
-      if (!existingDoc[0].groupInvoiceId) {
-        await db.update(containerDocuments)
-          .set({ groupInvoiceId: existingDoc[0].id })
-          .where(eq(containerDocuments.id, existingDoc[0].id));
-      }
-      await db.insert(containerDocuments).values({
-        containerId: container.id,
-        invoiceNumber: docInvoiceNumber,
-        invoiceDate: new Date(),
-        groupInvoiceId: groupId,
-      });
-    } else {
-      await db.insert(containerDocuments).values({
-        containerId: container.id,
-        invoiceNumber: docInvoiceNumber,
-        invoiceDate: new Date(),
-      });
-    }
-
-    return container;
-  }
-
-  async updateContainer(id: number, data: any): Promise<Container | undefined> {
-    const updateData: any = {};
-    if (data.invoiceNumber !== undefined) updateData.invoiceNumber = data.invoiceNumber;
-    if (data.containerNumber !== undefined) updateData.containerNumber = data.containerNumber;
-    if (data.shippingCompanyId !== undefined) updateData.shippingCompanyId = data.shippingCompanyId;
-    if (data.shippingCompany !== undefined) updateData.shippingCompany = data.shippingCompany;
-    if (data.priceCNY !== undefined) updateData.priceCNY = data.priceCNY;
-    if (data.priceUSD !== undefined) updateData.priceUSD = data.priceUSD;
-
-    const [container] = await db.update(containers)
-      .set(updateData)
-      .where(eq(containers.id, id))
+  async updateCompanyBalance(id: string, balance: string): Promise<Company | undefined> {
+    const [updated] = await db
+      .update(companies)
+      .set({ balance })
+      .where(eq(companies.id, id))
       .returning();
-    return container;
+    return updated;
   }
 
-  async markContainerArrived(containerId: number): Promise<Container | undefined> {
-    const [container] = await db.update(containers)
-      .set({ status: "arrived" })
-      .where(eq(containers.id, containerId))
+  async updateCompanyDebt(id: string, debtToParent: string): Promise<Company | undefined> {
+    const [updated] = await db
+      .update(companies)
+      .set({ debtToParent })
+      .where(eq(companies.id, id))
       .returning();
-
-    const cItems = await db.select().from(containerItems).where(eq(containerItems.containerId, containerId));
-    for (const item of cItems) {
-      await db.update(products)
-        .set({ status: "arrived", statusChangedAt: new Date() })
-        .where(eq(products.id, item.productId));
-    }
-
-    return container;
-  }
-
-  async getSupplierAccount(supplierId: number): Promise<any> {
-    const allDeliveries = await db.select().from(deliveries)
-      .where(eq(deliveries.supplierId, supplierId));
-
-    const allDeliveryItems = [];
-    let totalCNY = 0;
-    let totalUSD = 0;
-
-    for (const del of allDeliveries) {
-      const items = await db.select().from(deliveryItems)
-        .where(eq(deliveryItems.deliveryId, del.id));
-      for (const item of items) {
-        const prods = await db.select().from(products).where(eq(products.id, item.productId));
-        const enriched = {
-          ...item,
-          productName: prods[0]?.name || `منتج #${item.productId}`,
-          productNameZh: prods[0]?.nameZh || null,
-        };
-        allDeliveryItems.push(enriched);
-        if (item.currency === "CNY") totalCNY += (item.price || 0) * item.quantity;
-        else totalUSD += (item.price || 0) * item.quantity;
-      }
-    }
-
-    const allPayments = await db.select().from(payments)
-      .where(eq(payments.supplierId, supplierId));
-
-    let paidCNY = 0;
-    let paidUSD = 0;
-    for (const p of allPayments) {
-      if (p.currency === "CNY") paidCNY += p.amount;
-      else paidUSD += p.amount;
-    }
-
-    return {
-      totalCNY,
-      totalUSD,
-      paidCNY,
-      paidUSD,
-      deliveryItems: allDeliveryItems,
-      payments: allPayments,
-    };
-  }
-
-  async getShippingCompanyAccount(companyId: number): Promise<any> {
-    const companyContainers = await db.select().from(containers)
-      .where(eq(containers.shippingCompanyId, companyId));
-
-    let totalCNY = 0;
-    let totalUSD = 0;
-    const containersList = [];
-
-    for (const cont of companyContainers) {
-      totalCNY += cont.priceCNY || 0;
-      totalUSD += cont.priceUSD || 0;
-      const cItems = await db.select().from(containerItems).where(eq(containerItems.containerId, cont.id));
-      const enrichedItems = [];
-      for (const item of cItems) {
-        const prods = await db.select().from(products).where(eq(products.id, item.productId));
-        enrichedItems.push({
-          ...item,
-          productName: prods[0]?.name || `منتج #${item.productId}`,
-          productNameZh: prods[0]?.nameZh || null,
-        });
-      }
-      containersList.push({
-        ...cont,
-        items: enrichedItems,
-      });
-    }
-
-    const allPayments = await db.select().from(shippingPayments)
-      .where(eq(shippingPayments.shippingCompanyId, companyId));
-
-    let paidCNY = 0;
-    let paidUSD = 0;
-    for (const p of allPayments) {
-      if (p.currency === "CNY") paidCNY += p.amount;
-      else paidUSD += p.amount;
-    }
-
-    return {
-      totalCNY,
-      totalUSD,
-      paidCNY,
-      paidUSD,
-      containers: containersList,
-      payments: allPayments,
-    };
-  }
-
-  async getDashboardSummary(): Promise<any> {
-    const allCashbox = await db.select().from(cashboxTransactions);
-    let cashboxIncomeCNY = 0, cashboxIncomeUSD = 0;
-    let cashboxExpenseCNY = 0, cashboxExpenseUSD = 0;
-    for (const tx of allCashbox) {
-      if (tx.type === "income") {
-        if (tx.currency === "CNY") cashboxIncomeCNY += tx.amount;
-        else cashboxIncomeUSD += tx.amount;
-      } else {
-        if (tx.currency === "CNY") cashboxExpenseCNY += tx.amount;
-        else cashboxExpenseUSD += tx.amount;
-      }
-    }
-    const cashboxBalanceCNY = cashboxIncomeCNY - cashboxExpenseCNY;
-    const cashboxBalanceUSD = cashboxIncomeUSD - cashboxExpenseUSD;
-
-    const allSuppliers = await db.select().from(suppliers);
-    let supplierDebtCNY = 0, supplierDebtUSD = 0;
-    for (const sup of allSuppliers) {
-      const supDeliveries = await db.select().from(deliveries).where(eq(deliveries.supplierId, sup.id));
-      let totalCNY = 0, totalUSD = 0;
-      for (const del of supDeliveries) {
-        const items = await db.select().from(deliveryItems).where(eq(deliveryItems.deliveryId, del.id));
-        for (const item of items) {
-          if (item.currency === "CNY") totalCNY += (item.price || 0) * item.quantity;
-          else totalUSD += (item.price || 0) * item.quantity;
-        }
-      }
-      const supPayments = await db.select().from(payments).where(eq(payments.supplierId, sup.id));
-      let paidCNY = 0, paidUSD = 0;
-      for (const p of supPayments) {
-        if (p.currency === "CNY") paidCNY += p.amount;
-        else paidUSD += p.amount;
-      }
-      supplierDebtCNY += totalCNY - paidCNY;
-      supplierDebtUSD += totalUSD - paidUSD;
-    }
-
-    const allShippingCompanies = await db.select().from(shippingCompanies);
-    let shippingDebtCNY = 0, shippingDebtUSD = 0;
-    for (const sc of allShippingCompanies) {
-      const scContainers = await db.select().from(containers).where(eq(containers.shippingCompanyId, sc.id));
-      let totalCNY = 0, totalUSD = 0;
-      for (const cont of scContainers) {
-        totalCNY += cont.priceCNY || 0;
-        totalUSD += cont.priceUSD || 0;
-      }
-      const scPayments = await db.select().from(shippingPayments).where(eq(shippingPayments.shippingCompanyId, sc.id));
-      let paidCNY = 0, paidUSD = 0;
-      for (const p of scPayments) {
-        if (p.currency === "CNY") paidCNY += p.amount;
-        else paidUSD += p.amount;
-      }
-      shippingDebtCNY += totalCNY - paidCNY;
-      shippingDebtUSD += totalUSD - paidUSD;
-    }
-
-    const allProducts = await db.select().from(products);
-    const warehouseProductIds = allProducts
-      .filter(p => p.status === "received" || p.status === "semi_manufactured")
-      .map(p => p.id);
-
-    let warehouseValueCNY = 0, warehouseValueUSD = 0;
-    if (warehouseProductIds.length > 0) {
-      const allDeliveryItems = await db.select().from(deliveryItems);
-      for (const item of allDeliveryItems) {
-        if (warehouseProductIds.includes(item.productId)) {
-          if (item.currency === "CNY") warehouseValueCNY += (item.price || 0) * item.quantity;
-          else warehouseValueUSD += (item.price || 0) * item.quantity;
-        }
-      }
-    }
-
-    const shippingContainers = await db.select().from(containers).where(eq(containers.status, "shipping"));
-    let containerValueCNY = 0, containerValueUSD = 0;
-    for (const cont of shippingContainers) {
-      const cItems = await db.select().from(containerItems).where(eq(containerItems.containerId, cont.id));
-      for (const ci of cItems) {
-        const productDIs = await db.select().from(deliveryItems).where(eq(deliveryItems.productId, ci.productId));
-        let totalQty = 0, weightedCNY = 0, weightedUSD = 0;
-        for (const di of productDIs) {
-          if (di.currency === "CNY") weightedCNY += (di.price || 0) * di.quantity;
-          else weightedUSD += (di.price || 0) * di.quantity;
-          totalQty += di.quantity;
-        }
-        if (totalQty > 0) {
-          const avgPriceCNY = weightedCNY / totalQty;
-          const avgPriceUSD = weightedUSD / totalQty;
-          containerValueCNY += avgPriceCNY * ci.quantity;
-          containerValueUSD += avgPriceUSD * ci.quantity;
-        }
-      }
-    }
-
-    return {
-      cashbox: { balanceCNY: cashboxBalanceCNY, balanceUSD: cashboxBalanceUSD },
-      supplierDebt: { CNY: supplierDebtCNY, USD: supplierDebtUSD },
-      shippingDebt: { CNY: shippingDebtCNY, USD: shippingDebtUSD },
-      warehouseValue: { CNY: warehouseValueCNY, USD: warehouseValueUSD },
-      containerValue: { CNY: containerValueCNY, USD: containerValueUSD },
-      grandTotal: {
-        CNY: cashboxBalanceCNY + warehouseValueCNY + containerValueCNY - supplierDebtCNY - shippingDebtCNY,
-        USD: cashboxBalanceUSD + warehouseValueUSD + containerValueUSD - supplierDebtUSD - shippingDebtUSD,
-      },
-    };
-  }
-
-  async createPayment(data: InsertPayment): Promise<Payment> {
-    const [pay] = await db.insert(payments).values(data).returning();
-    return pay;
-  }
-
-  async updatePayment(id: number, data: Partial<InsertPayment>): Promise<Payment | undefined> {
-    const [updated] = await db.update(payments).set(data).where(eq(payments.id, id)).returning();
     return updated;
   }
 
-  async deletePayment(id: number): Promise<void> {
-    await db.delete(payments).where(eq(payments.id, id));
+  async getTransfers(): Promise<Transfer[]> {
+    return db.select().from(transfers);
   }
 
-  async createShippingPayment(data: InsertShippingPayment): Promise<ShippingPayment> {
-    const [pay] = await db.insert(shippingPayments).values(data).returning();
-    return pay;
+  async getTransfer(id: string): Promise<Transfer | undefined> {
+    const [transfer] = await db.select().from(transfers).where(eq(transfers.id, id));
+    return transfer;
   }
 
-  async updateShippingPayment(id: number, data: Partial<InsertShippingPayment>): Promise<ShippingPayment | undefined> {
-    const [updated] = await db.update(shippingPayments).set(data).where(eq(shippingPayments.id, id)).returning();
+  async createTransfer(transfer: InsertTransfer): Promise<Transfer> {
+    const [created] = await db.insert(transfers).values(transfer).returning();
+    return created;
+  }
+
+  async updateTransferStatus(id: string, status: string): Promise<Transfer | undefined> {
+    const [updated] = await db
+      .update(transfers)
+      .set({ status })
+      .where(eq(transfers.id, id))
+      .returning();
     return updated;
   }
 
-  async deleteShippingPayment(id: number): Promise<void> {
-    await db.delete(shippingPayments).where(eq(shippingPayments.id, id));
+  async getExpenseCategories(): Promise<ExpenseCategory[]> {
+    return db.select().from(expenseCategories);
   }
 
-  async getProductParts(productId: number): Promise<ProductPart[]> {
-    return db.select().from(productParts).where(eq(productParts.productId, productId));
+  async createExpenseCategory(cat: InsertExpenseCategory): Promise<ExpenseCategory> {
+    const [created] = await db.insert(expenseCategories).values(cat).returning();
+    return created;
   }
 
-  async createProductPart(data: InsertProductPart): Promise<ProductPart> {
-    const [part] = await db.insert(productParts).values(data).returning();
-    return part;
-  }
-
-  async deleteProductPart(id: number): Promise<void> {
-    await db.delete(productParts).where(eq(productParts.id, id));
-  }
-
-  async getWarehouseInventory(): Promise<any[]> {
-    const receivedProducts = await db.select().from(products)
-      .where(sql`${products.status} IN ('received', 'semi_manufactured')`);
-
-    const result = [];
-    for (const prod of receivedProducts) {
-      const delItems = await db.select().from(deliveryItems)
-        .where(eq(deliveryItems.productId, prod.id));
-
-      const latestDelivery = delItems.length > 0 ? delItems[delItems.length - 1] : null;
-      const cat = prod.categoryId ? await db.select().from(categories).where(eq(categories.id, prod.categoryId)) : [];
-
-      let parts: ProductPart[] = [];
-      if (prod.status === "semi_manufactured") {
-        parts = await db.select().from(productParts).where(eq(productParts.productId, prod.id));
-      }
-
-      result.push({
-        ...prod,
-        categoryName: cat[0]?.name || "",
-        length: latestDelivery?.length || 0,
-        width: latestDelivery?.width || 0,
-        height: latestDelivery?.height || 0,
-        weight: latestDelivery?.weight || 0,
-        piecesPerCarton: latestDelivery?.piecesPerCarton || 0,
-        parts,
-      });
-    }
-    return result;
-  }
-
-  async getUserByUsername(username: string): Promise<User | undefined> {
-    const [user] = await db.select().from(users).where(eq(users.username, username));
-    return user;
-  }
-
-  async getUserById(id: number): Promise<User | undefined> {
-    const [user] = await db.select().from(users).where(eq(users.id, id));
-    return user;
-  }
-
-  async createUser(data: InsertUser): Promise<User> {
-    const [user] = await db.insert(users).values(data).returning();
-    return user;
-  }
-
-  async updateUser(id: number, data: Partial<{ username: string; password: string; displayName: string }>): Promise<User | undefined> {
-    const [user] = await db.update(users).set(data).where(eq(users.id, id)).returning();
-    return user;
-  }
-
-  async getUsers(): Promise<User[]> {
-    return db.select().from(users);
-  }
-
-  async getUserCategories(userId: number): Promise<number[]> {
-    const rows = await db.select().from(userCategories).where(eq(userCategories.userId, userId));
-    return rows.map(r => r.categoryId);
-  }
-
-  async setUserCategories(userId: number, categoryIds: number[]): Promise<void> {
-    await db.delete(userCategories).where(eq(userCategories.userId, userId));
-    if (categoryIds.length > 0) {
-      await db.insert(userCategories).values(
-        categoryIds.map(categoryId => ({ userId, categoryId }))
-      );
-    }
-  }
-
-  async getCashboxTransactions(): Promise<any[]> {
-    const txns = await db.select().from(cashboxTransactions);
-    const result = [];
-    for (const txn of txns) {
-      let entityName = "";
-      if (txn.category === "supplier" && txn.supplierId) {
-        const [sup] = await db.select().from(suppliers).where(eq(suppliers.id, txn.supplierId));
-        entityName = sup?.name || "";
-      } else if (txn.category === "shipping" && txn.shippingCompanyId) {
-        const [sc] = await db.select().from(shippingCompanies).where(eq(shippingCompanies.id, txn.shippingCompanyId));
-        entityName = sc?.name || "";
-      } else if (txn.category === "expense" && txn.expenseId) {
-        const [exp] = await db.select().from(expenses).where(eq(expenses.id, txn.expenseId));
-        entityName = exp?.title || "";
-      }
-      result.push({ ...txn, entityName });
-    }
-    return result;
-  }
-
-  async getCashboxSummary(): Promise<any> {
-    const txns = await db.select().from(cashboxTransactions);
-    let incomeCNY = 0, incomeUSD = 0, expenseCNY = 0, expenseUSD = 0;
-    for (const txn of txns) {
-      if (txn.type === "income") {
-        if (txn.currency === "CNY") incomeCNY += txn.amount;
-        else incomeUSD += txn.amount;
-      } else {
-        if (txn.currency === "CNY") expenseCNY += txn.amount;
-        else expenseUSD += txn.amount;
-      }
-    }
-    return {
-      incomeCNY, incomeUSD,
-      expenseCNY, expenseUSD,
-      balanceCNY: incomeCNY - expenseCNY,
-      balanceUSD: incomeUSD - expenseUSD,
-    };
-  }
-
-  async createCashboxTransaction(data: InsertCashboxTransaction): Promise<CashboxTransaction> {
-    const [txn] = await db.insert(cashboxTransactions).values(data).returning();
-    return txn;
-  }
-
-  async updateCashboxTransaction(id: number, data: Partial<InsertCashboxTransaction>): Promise<CashboxTransaction | undefined> {
-    const [updated] = await db.update(cashboxTransactions).set(data).where(eq(cashboxTransactions.id, id)).returning();
-    return updated;
-  }
-
-  async deleteCashboxTransaction(id: number): Promise<void> {
-    await db.delete(cashboxTransactions).where(eq(cashboxTransactions.id, id));
-  }
-
-  async getCashboxByPaymentId(paymentId: number): Promise<CashboxTransaction | undefined> {
-    const [txn] = await db.select().from(cashboxTransactions).where(eq(cashboxTransactions.paymentId, paymentId));
-    return txn;
-  }
-
-  async getCashboxByShippingPaymentId(shippingPaymentId: number): Promise<CashboxTransaction | undefined> {
-    const [txn] = await db.select().from(cashboxTransactions).where(eq(cashboxTransactions.shippingPaymentId, shippingPaymentId));
-    return txn;
-  }
-
-  async deleteCashboxByPaymentId(paymentId: number): Promise<void> {
-    await db.delete(cashboxTransactions).where(eq(cashboxTransactions.paymentId, paymentId));
-  }
-
-  async deleteCashboxByShippingPaymentId(shippingPaymentId: number): Promise<void> {
-    await db.delete(cashboxTransactions).where(eq(cashboxTransactions.shippingPaymentId, shippingPaymentId));
-  }
-
-  async updateCashboxByPaymentId(paymentId: number, data: Partial<InsertCashboxTransaction>): Promise<CashboxTransaction | undefined> {
-    const [updated] = await db.update(cashboxTransactions).set(data).where(eq(cashboxTransactions.paymentId, paymentId)).returning();
-    return updated;
-  }
-
-  async updateCashboxByShippingPaymentId(shippingPaymentId: number, data: Partial<InsertCashboxTransaction>): Promise<CashboxTransaction | undefined> {
-    const [updated] = await db.update(cashboxTransactions).set(data).where(eq(cashboxTransactions.shippingPaymentId, shippingPaymentId)).returning();
-    return updated;
+  async deleteExpenseCategory(id: string): Promise<void> {
+    await db.delete(expenseCategories).where(eq(expenseCategories.id, id));
   }
 
   async getExpenses(): Promise<Expense[]> {
     return db.select().from(expenses);
   }
 
-  async createExpense(data: InsertExpense): Promise<Expense> {
-    const [expense] = await db.insert(expenses).values(data).returning();
+  async getExpense(id: string): Promise<Expense | undefined> {
+    const [expense] = await db.select().from(expenses).where(eq(expenses.id, id));
     return expense;
   }
 
-  async updateExpense(id: number, data: Partial<InsertExpense>): Promise<Expense | undefined> {
+  async createExpense(expense: InsertExpense): Promise<Expense> {
+    const [created] = await db.insert(expenses).values(expense).returning();
+    return created;
+  }
+
+  async updateExpense(id: string, data: Partial<InsertExpense>): Promise<Expense | undefined> {
     const [updated] = await db.update(expenses).set(data).where(eq(expenses.id, id)).returning();
     return updated;
   }
 
-  async deleteExpense(id: number): Promise<void> {
+  async deleteExpense(id: string): Promise<void> {
     await db.delete(expenses).where(eq(expenses.id, id));
   }
 
-  async getCashboxByExpenseId(expenseId: number): Promise<CashboxTransaction | undefined> {
-    const [txn] = await db.select().from(cashboxTransactions).where(eq(cashboxTransactions.expenseId, expenseId));
-    return txn;
+  async getMemberTypes(): Promise<MemberType[]> {
+    return db.select().from(memberTypes);
   }
 
-  async deleteCashboxByExpenseId(expenseId: number): Promise<void> {
-    await db.delete(cashboxTransactions).where(eq(cashboxTransactions.expenseId, expenseId));
+  async createMemberType(mt: InsertMemberType): Promise<MemberType> {
+    const [created] = await db.insert(memberTypes).values(mt).returning();
+    return created;
   }
 
-  async updateCashboxByExpenseId(expenseId: number, data: Partial<InsertCashboxTransaction>): Promise<CashboxTransaction | undefined> {
-    const [updated] = await db.update(cashboxTransactions).set(data).where(eq(cashboxTransactions.expenseId, expenseId)).returning();
+  async deleteMemberType(id: string): Promise<void> {
+    await db.delete(memberTypes).where(eq(memberTypes.id, id));
+  }
+
+  async getMembers(): Promise<Member[]> {
+    return db.select().from(members);
+  }
+
+  async getMember(id: string): Promise<Member | undefined> {
+    const [member] = await db.select().from(members).where(eq(members.id, id));
+    return member;
+  }
+
+  async createMember(member: InsertMember): Promise<Member> {
+    const [created] = await db.insert(members).values(member).returning();
+    return created;
+  }
+
+  async updateMember(id: string, data: Partial<Pick<Member, "name" | "phone" | "typeId">>): Promise<Member | undefined> {
+    const [updated] = await db
+      .update(members)
+      .set(data)
+      .where(eq(members.id, id))
+      .returning();
     return updated;
   }
 
-  async getContainerDocuments(): Promise<any[]> {
-    const docs = await db.select().from(containerDocuments).orderBy(desc(containerDocuments.id));
-    const result = [];
-    for (const doc of docs) {
-      const [container] = await db.select().from(containers).where(eq(containers.id, doc.containerId));
-      result.push({ ...doc, container });
+  async deleteMember(id: string): Promise<void> {
+    await db.delete(memberTransfers).where(eq(memberTransfers.memberId, id));
+    await db.delete(members).where(eq(members.id, id));
+  }
+
+  async updateMemberBalance(id: string, balance: string): Promise<Member | undefined> {
+    const [updated] = await db
+      .update(members)
+      .set({ balance })
+      .where(eq(members.id, id))
+      .returning();
+    return updated;
+  }
+
+  async getMemberTransfers(): Promise<MemberTransfer[]> {
+    return db.select().from(memberTransfers);
+  }
+
+  async getMemberTransfersByMember(memberId: string): Promise<MemberTransfer[]> {
+    return db.select().from(memberTransfers).where(eq(memberTransfers.memberId, memberId));
+  }
+
+  async createMemberTransfer(mt: InsertMemberTransfer): Promise<MemberTransfer> {
+    const [created] = await db.insert(memberTransfers).values(mt).returning();
+    return created;
+  }
+
+  async deleteMemberTransfer(id: string): Promise<void> {
+    await db.delete(memberTransfers).where(eq(memberTransfers.id, id));
+  }
+
+  async getMemberTransfer(id: string): Promise<MemberTransfer | undefined> {
+    const [mt] = await db.select().from(memberTransfers).where(eq(memberTransfers.id, id));
+    return mt;
+  }
+
+  async getExternalDebts(): Promise<ExternalDebt[]> {
+    return db.select().from(externalDebts);
+  }
+
+  async getExternalDebt(id: string): Promise<ExternalDebt | undefined> {
+    const [debt] = await db.select().from(externalDebts).where(eq(externalDebts.id, id));
+    return debt;
+  }
+
+  async createExternalDebt(debt: InsertExternalDebt): Promise<ExternalDebt> {
+    const [created] = await db.insert(externalDebts).values(debt).returning();
+    return created;
+  }
+
+  async updateExternalDebt(id: string, data: Partial<Pick<ExternalDebt, "personName" | "phone" | "note" | "totalAmount" | "paidAmount">>): Promise<ExternalDebt | undefined> {
+    const [updated] = await db.update(externalDebts).set(data).where(eq(externalDebts.id, id)).returning();
+    return updated;
+  }
+
+  async deleteExternalDebt(id: string): Promise<void> {
+    await db.delete(debtPayments).where(eq(debtPayments.debtId, id));
+    await db.delete(externalDebts).where(eq(externalDebts.id, id));
+  }
+
+  async getDebtPayments(debtId: string): Promise<DebtPayment[]> {
+    return db.select().from(debtPayments).where(eq(debtPayments.debtId, debtId));
+  }
+
+  async getAllDebtPayments(): Promise<DebtPayment[]> {
+    return db.select().from(debtPayments);
+  }
+
+  async getDebtPayment(id: string): Promise<DebtPayment | undefined> {
+    const [payment] = await db.select().from(debtPayments).where(eq(debtPayments.id, id));
+    return payment;
+  }
+
+  async createDebtPayment(payment: InsertDebtPayment): Promise<DebtPayment> {
+    const [created] = await db.insert(debtPayments).values(payment).returning();
+    return created;
+  }
+
+  async deleteDebtPayment(id: string): Promise<void> {
+    await db.delete(debtPayments).where(eq(debtPayments.id, id));
+  }
+
+  async getTrucks(): Promise<Truck[]> {
+    return db.select().from(trucks);
+  }
+
+  async getTruck(id: string): Promise<Truck | undefined> {
+    const [truck] = await db.select().from(trucks).where(eq(trucks.id, id));
+    return truck;
+  }
+
+  async createTruck(truck: InsertTruck): Promise<Truck> {
+    const [created] = await db.insert(trucks).values(truck).returning();
+    return created;
+  }
+
+  async updateTruck(id: string, data: Partial<Pick<Truck, "number" | "driverName" | "fuelFormula" | "driverWage" | "driverCommissionRate">>): Promise<Truck | undefined> {
+    const [updated] = await db.update(trucks).set(data).where(eq(trucks.id, id)).returning();
+    return updated;
+  }
+
+  async updateTruckBalance(id: string, balance: string): Promise<Truck | undefined> {
+    const [updated] = await db.update(trucks).set({ balance }).where(eq(trucks.id, id)).returning();
+    return updated;
+  }
+
+  async deleteTruck(id: string): Promise<void> {
+    await db.delete(truckTrips).where(eq(truckTrips.truckId, id));
+    await db.delete(truckExpenses).where(eq(truckExpenses.truckId, id));
+    await db.delete(trucks).where(eq(trucks.id, id));
+  }
+
+  async getTruckExpenses(truckId: string): Promise<TruckExpense[]> {
+    return db.select().from(truckExpenses).where(eq(truckExpenses.truckId, truckId));
+  }
+
+  async getAllTruckExpenses(): Promise<TruckExpense[]> {
+    return db.select().from(truckExpenses);
+  }
+
+  async getTruckExpense(id: string): Promise<TruckExpense | undefined> {
+    const [expense] = await db.select().from(truckExpenses).where(eq(truckExpenses.id, id));
+    return expense;
+  }
+
+  async createTruckExpense(expense: InsertTruckExpense): Promise<TruckExpense> {
+    const [created] = await db.insert(truckExpenses).values(expense).returning();
+    return created;
+  }
+
+  async deleteTruckExpense(id: string): Promise<void> {
+    await db.delete(truckExpenses).where(eq(truckExpenses.id, id));
+  }
+
+  async getTruckTrips(truckId: string): Promise<TruckTrip[]> {
+    return db.select().from(truckTrips).where(eq(truckTrips.truckId, truckId));
+  }
+
+  async getAllTruckTrips(): Promise<TruckTrip[]> {
+    return db.select().from(truckTrips);
+  }
+
+  async getTruckTrip(id: string): Promise<TruckTrip | undefined> {
+    const [trip] = await db.select().from(truckTrips).where(eq(truckTrips.id, id));
+    return trip;
+  }
+
+  async getLastTruckTrip(truckId: string): Promise<TruckTrip | undefined> {
+    const trips = await db.select().from(truckTrips).where(eq(truckTrips.truckId, truckId));
+    if (trips.length === 0) return undefined;
+    return trips.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())[0];
+  }
+
+  async createTruckTrip(trip: InsertTruckTrip): Promise<TruckTrip> {
+    const [created] = await db.insert(truckTrips).values(trip).returning();
+    return created;
+  }
+
+  async updateTruckTrip(id: string, data: Partial<InsertTruckTrip>): Promise<TruckTrip | undefined> {
+    const [updated] = await db.update(truckTrips).set(data).where(eq(truckTrips.id, id)).returning();
+    return updated;
+  }
+
+  async deleteTruckTrip(id: string): Promise<void> {
+    await db.delete(truckTrips).where(eq(truckTrips.id, id));
+  }
+
+  async getExternalFunds(): Promise<ExternalFund[]> {
+    return db.select().from(externalFunds);
+  }
+
+  async getExternalFund(id: string): Promise<ExternalFund | undefined> {
+    const [fund] = await db.select().from(externalFunds).where(eq(externalFunds.id, id));
+    return fund;
+  }
+
+  async createExternalFund(fund: InsertExternalFund): Promise<ExternalFund> {
+    const [created] = await db.insert(externalFunds).values(fund).returning();
+    return created;
+  }
+
+  async deleteExternalFund(id: string): Promise<void> {
+    await db.delete(externalFunds).where(eq(externalFunds.id, id));
+  }
+
+  async getProjects(): Promise<Project[]> {
+    return db.select().from(projects);
+  }
+
+  async getProject(id: string): Promise<Project | undefined> {
+    const [project] = await db.select().from(projects).where(eq(projects.id, id));
+    return project;
+  }
+
+  async createProject(project: InsertProject): Promise<Project> {
+    const [created] = await db.insert(projects).values(project).returning();
+    return created;
+  }
+
+  async updateProjectBalance(id: string, balance: string): Promise<Project | undefined> {
+    const [updated] = await db.update(projects).set({ balance }).where(eq(projects.id, id)).returning();
+    return updated;
+  }
+
+  async deleteProject(id: string): Promise<void> {
+    await db.delete(projectTransactions).where(eq(projectTransactions.projectId, id));
+    await db.delete(projects).where(eq(projects.id, id));
+  }
+
+  async getProjectTransactions(projectId: string): Promise<ProjectTransaction[]> {
+    return db.select().from(projectTransactions).where(eq(projectTransactions.projectId, projectId));
+  }
+
+  async getAllProjectTransactions(): Promise<ProjectTransaction[]> {
+    return db.select().from(projectTransactions);
+  }
+
+  async getProjectTransaction(id: string): Promise<ProjectTransaction | undefined> {
+    const [tx] = await db.select().from(projectTransactions).where(eq(projectTransactions.id, id));
+    return tx;
+  }
+
+  async createProjectTransaction(tx: InsertProjectTransaction): Promise<ProjectTransaction> {
+    const [created] = await db.insert(projectTransactions).values(tx).returning();
+    return created;
+  }
+
+  async deleteProjectTransaction(id: string): Promise<void> {
+    await db.delete(projectTransactions).where(eq(projectTransactions.id, id));
+  }
+
+  async getOperators(): Promise<Operator[]> {
+    return db.select().from(operators);
+  }
+
+  async getOperator(id: string): Promise<Operator | undefined> {
+    const [op] = await db.select().from(operators).where(eq(operators.id, id));
+    return op;
+  }
+
+  async getOperatorByUsername(username: string): Promise<Operator | undefined> {
+    const [op] = await db.select().from(operators).where(eq(operators.username, username));
+    return op;
+  }
+
+  async createOperator(op: InsertOperator): Promise<Operator> {
+    const [created] = await db.insert(operators).values(op).returning();
+    return created;
+  }
+
+  async deleteOperator(id: string): Promise<void> {
+    await db.delete(operators).where(eq(operators.id, id));
+  }
+
+  async getFactorySettings(): Promise<FactorySettings> {
+    const rows = await db.select().from(factorySettings);
+    if (rows.length === 0) {
+      const [created] = await db.insert(factorySettings).values({}).returning();
+      return created;
     }
-    return result;
+    return rows[0];
   }
 
-  async getContainerDocument(id: number): Promise<any> {
-    const [doc] = await db.select().from(containerDocuments).where(eq(containerDocuments.id, id));
-    return doc;
-  }
-
-  async updateContainerDocument(id: number, data: any): Promise<any> {
-    const [updated] = await db.update(containerDocuments).set(data).where(eq(containerDocuments.id, id)).returning();
+  async updateFactoryBalance(balance: string): Promise<FactorySettings> {
+    const settings = await this.getFactorySettings();
+    const [updated] = await db.update(factorySettings).set({ balance }).where(eq(factorySettings.id, settings.id)).returning();
     return updated;
+  }
+
+  async getWorkshops(): Promise<Workshop[]> {
+    return db.select().from(workshops);
+  }
+
+  async getWorkshop(id: string): Promise<Workshop | undefined> {
+    const [ws] = await db.select().from(workshops).where(eq(workshops.id, id));
+    return ws;
+  }
+
+  async createWorkshop(ws: InsertWorkshop): Promise<Workshop> {
+    const [created] = await db.insert(workshops).values(ws).returning();
+    return created;
+  }
+
+  async deleteWorkshop(id: string): Promise<void> {
+    const workshopMachines = await db.select().from(machines).where(eq(machines.workshopId, id));
+    for (const machine of workshopMachines) {
+      await db.delete(machineDailyEntries).where(eq(machineDailyEntries.machineId, machine.id));
+      await db.delete(sparePartsConsumption).where(eq(sparePartsConsumption.machineId, machine.id));
+    }
+    await db.delete(machines).where(eq(machines.workshopId, id));
+    await db.delete(workshopExpenses).where(eq(workshopExpenses.workshopId, id));
+    await db.delete(workshops).where(eq(workshops.id, id));
+  }
+
+  async getWorkshopExpenseCategories(): Promise<WorkshopExpenseCategory[]> {
+    return db.select().from(workshopExpenseCategories);
+  }
+
+  async createWorkshopExpenseCategory(cat: InsertWorkshopExpenseCategory): Promise<WorkshopExpenseCategory> {
+    const [created] = await db.insert(workshopExpenseCategories).values(cat).returning();
+    return created;
+  }
+
+  async deleteWorkshopExpenseCategory(id: string): Promise<void> {
+    await db.delete(workshopExpenseCategories).where(eq(workshopExpenseCategories.id, id));
+  }
+
+  async getWorkshopExpenses(workshopId: string): Promise<WorkshopExpense[]> {
+    return db.select().from(workshopExpenses).where(eq(workshopExpenses.workshopId, workshopId));
+  }
+
+  async getAllWorkshopExpenses(): Promise<WorkshopExpense[]> {
+    return db.select().from(workshopExpenses);
+  }
+
+  async getWorkshopExpense(id: string): Promise<WorkshopExpense | undefined> {
+    const [expense] = await db.select().from(workshopExpenses).where(eq(workshopExpenses.id, id));
+    return expense;
+  }
+
+  async createWorkshopExpense(exp: InsertWorkshopExpense): Promise<WorkshopExpense> {
+    const [created] = await db.insert(workshopExpenses).values(exp).returning();
+    return created;
+  }
+
+  async deleteWorkshopExpense(id: string): Promise<void> {
+    await db.delete(workshopExpenses).where(eq(workshopExpenses.id, id));
+  }
+
+  async getMachines(): Promise<Machine[]> {
+    return db.select().from(machines);
+  }
+
+  async getMachinesByWorkshop(workshopId: string): Promise<Machine[]> {
+    return db.select().from(machines).where(eq(machines.workshopId, workshopId));
+  }
+
+  async getMachine(id: string): Promise<Machine | undefined> {
+    const [machine] = await db.select().from(machines).where(eq(machines.id, id));
+    return machine;
+  }
+
+  async createMachine(machine: InsertMachine): Promise<Machine> {
+    const [created] = await db.insert(machines).values(machine).returning();
+    return created;
+  }
+
+  async deleteMachine(id: string): Promise<void> {
+    await db.delete(machineDailyEntries).where(eq(machineDailyEntries.machineId, id));
+    await db.delete(sparePartsConsumption).where(eq(sparePartsConsumption.machineId, id));
+    await db.delete(machines).where(eq(machines.id, id));
+  }
+
+  async getWorkers(): Promise<Worker[]> {
+    return db.select().from(workers);
+  }
+
+  async getWorker(id: string): Promise<Worker | undefined> {
+    const [worker] = await db.select().from(workers).where(eq(workers.id, id));
+    return worker;
+  }
+
+  async createWorker(worker: InsertWorker): Promise<Worker> {
+    const [created] = await db.insert(workers).values(worker).returning();
+    return created;
+  }
+
+  async updateWorker(id: string, data: Partial<InsertWorker>): Promise<Worker | undefined> {
+    const [updated] = await db.update(workers).set(data).where(eq(workers.id, id)).returning();
+    return updated;
+  }
+
+  async updateWorkerBalance(id: string, balance: string): Promise<Worker | undefined> {
+    const [updated] = await db.update(workers).set({ balance }).where(eq(workers.id, id)).returning();
+    return updated;
+  }
+
+  async deleteWorker(id: string): Promise<void> {
+    await db.delete(workerTransactions).where(eq(workerTransactions.workerId, id));
+    await db.delete(workers).where(eq(workers.id, id));
+  }
+
+  async getWorkerCompanies(): Promise<WorkerCompany[]> {
+    return db.select().from(workerCompanies);
+  }
+
+  async createWorkerCompany(data: InsertWorkerCompany): Promise<WorkerCompany> {
+    const [created] = await db.insert(workerCompanies).values(data).returning();
+    return created;
+  }
+
+  async deleteWorkerCompany(id: string): Promise<void> {
+    await db.delete(workerCompanies).where(eq(workerCompanies.id, id));
+  }
+
+  async getWorkerTransactions(workerId: string): Promise<WorkerTransaction[]> {
+    return db.select().from(workerTransactions).where(eq(workerTransactions.workerId, workerId));
+  }
+
+  async createWorkerTransaction(data: InsertWorkerTransaction): Promise<WorkerTransaction> {
+    const [created] = await db.insert(workerTransactions).values(data).returning();
+    return created;
+  }
+
+  async deleteWorkerTransaction(id: string): Promise<WorkerTransaction | undefined> {
+    const [deleted] = await db.delete(workerTransactions).where(eq(workerTransactions.id, id)).returning();
+    return deleted;
+  }
+
+  async getMachineDailyEntries(machineId: string): Promise<MachineDailyEntry[]> {
+    return db.select().from(machineDailyEntries).where(eq(machineDailyEntries.machineId, machineId));
+  }
+
+  async getAllMachineDailyEntries(): Promise<MachineDailyEntry[]> {
+    return db.select().from(machineDailyEntries);
+  }
+
+  async getMachineDailyEntry(id: string): Promise<MachineDailyEntry | undefined> {
+    const [entry] = await db.select().from(machineDailyEntries).where(eq(machineDailyEntries.id, id));
+    return entry;
+  }
+
+  async createMachineDailyEntry(entry: InsertMachineDailyEntry): Promise<MachineDailyEntry> {
+    const [created] = await db.insert(machineDailyEntries).values(entry).returning();
+    return created;
+  }
+
+  async deleteMachineDailyEntry(id: string): Promise<void> {
+    await db.delete(machineDailyEntries).where(eq(machineDailyEntries.id, id));
+  }
+
+  async getSparePartItems(): Promise<SparePartItem[]> {
+    return db.select().from(sparePartsItems);
+  }
+
+  async getSparePartItem(id: string): Promise<SparePartItem | undefined> {
+    const [item] = await db.select().from(sparePartsItems).where(eq(sparePartsItems.id, id));
+    return item;
+  }
+
+  async createSparePartItem(item: InsertSparePartItem): Promise<SparePartItem> {
+    const [created] = await db.insert(sparePartsItems).values(item).returning();
+    return created;
+  }
+
+  async updateSparePartQuantity(id: string, quantity: string): Promise<SparePartItem | undefined> {
+    const [updated] = await db.update(sparePartsItems).set({ quantity }).where(eq(sparePartsItems.id, id)).returning();
+    return updated;
+  }
+
+  async deleteSparePartItem(id: string): Promise<void> {
+    await db.delete(sparePartsPurchases).where(eq(sparePartsPurchases.sparePartId, id));
+    await db.delete(sparePartsConsumption).where(eq(sparePartsConsumption.sparePartId, id));
+    await db.delete(sparePartsItems).where(eq(sparePartsItems.id, id));
+  }
+
+  async getSparePartPurchases(sparePartId: string): Promise<SparePartPurchase[]> {
+    return db.select().from(sparePartsPurchases).where(eq(sparePartsPurchases.sparePartId, sparePartId));
+  }
+
+  async getAllSparePartPurchases(): Promise<SparePartPurchase[]> {
+    return db.select().from(sparePartsPurchases);
+  }
+
+  async createSparePartPurchase(purchase: InsertSparePartPurchase): Promise<SparePartPurchase> {
+    const [created] = await db.insert(sparePartsPurchases).values(purchase).returning();
+    return created;
+  }
+
+  async deleteSparePartPurchase(id: string): Promise<void> {
+    await db.delete(sparePartsPurchases).where(eq(sparePartsPurchases.id, id));
+  }
+
+  async getSparePartConsumptions(machineId: string): Promise<SparePartConsumption[]> {
+    return db.select().from(sparePartsConsumption).where(eq(sparePartsConsumption.machineId, machineId));
+  }
+
+  async getAllSparePartConsumptions(): Promise<SparePartConsumption[]> {
+    return db.select().from(sparePartsConsumption);
+  }
+
+  async createSparePartConsumption(consumption: InsertSparePartConsumption): Promise<SparePartConsumption> {
+    const [created] = await db.insert(sparePartsConsumption).values(consumption).returning();
+    return created;
+  }
+
+  async deleteSparePartConsumption(id: string): Promise<void> {
+    await db.delete(sparePartsConsumption).where(eq(sparePartsConsumption.id, id));
+  }
+
+  async getRawMaterials(): Promise<RawMaterial[]> {
+    return db.select().from(rawMaterials);
+  }
+
+  async getRawMaterial(id: string): Promise<RawMaterial | undefined> {
+    const [material] = await db.select().from(rawMaterials).where(eq(rawMaterials.id, id));
+    return material;
+  }
+
+  async createRawMaterial(material: InsertRawMaterial): Promise<RawMaterial> {
+    const [created] = await db.insert(rawMaterials).values(material).returning();
+    return created;
+  }
+
+  async updateRawMaterialQuantity(id: string, quantity: string): Promise<RawMaterial | undefined> {
+    const [updated] = await db.update(rawMaterials).set({ quantity }).where(eq(rawMaterials.id, id)).returning();
+    return updated;
+  }
+
+  async deleteRawMaterial(id: string): Promise<void> {
+    await db.delete(rawMaterialPurchases).where(eq(rawMaterialPurchases.rawMaterialId, id));
+    await db.delete(rawMaterials).where(eq(rawMaterials.id, id));
+  }
+
+  async getRawMaterialPurchases(rawMaterialId: string): Promise<RawMaterialPurchase[]> {
+    return db.select().from(rawMaterialPurchases).where(eq(rawMaterialPurchases.rawMaterialId, rawMaterialId));
+  }
+
+  async getAllRawMaterialPurchases(): Promise<RawMaterialPurchase[]> {
+    return db.select().from(rawMaterialPurchases);
+  }
+
+  async createRawMaterialPurchase(purchase: InsertRawMaterialPurchase): Promise<RawMaterialPurchase> {
+    const [created] = await db.insert(rawMaterialPurchases).values(purchase).returning();
+    return created;
+  }
+
+  async deleteRawMaterialPurchase(id: string): Promise<void> {
+    await db.delete(rawMaterialPurchases).where(eq(rawMaterialPurchases.id, id));
+  }
+
+  async getAppUsers(): Promise<AppUser[]> {
+    return db.select().from(appUsers);
+  }
+
+  async getAppUser(id: string): Promise<AppUser | undefined> {
+    const [user] = await db.select().from(appUsers).where(eq(appUsers.id, id));
+    return user;
+  }
+
+  async getAppUserByUsername(username: string): Promise<AppUser | undefined> {
+    const [user] = await db.select().from(appUsers).where(eq(appUsers.username, username));
+    return user;
+  }
+
+  async createAppUser(user: InsertAppUser): Promise<AppUser> {
+    const [created] = await db.insert(appUsers).values(user).returning();
+    return created;
+  }
+
+  async updateAppUser(id: string, data: Partial<InsertAppUser>): Promise<AppUser | undefined> {
+    const [updated] = await db.update(appUsers).set(data).where(eq(appUsers.id, id)).returning();
+    return updated;
+  }
+
+  async deleteAppUser(id: string): Promise<void> {
+    await db.delete(appUsers).where(eq(appUsers.id, id));
+  }
+
+  async getWorkShifts(): Promise<WorkShift[]> {
+    return db.select().from(workShifts);
+  }
+
+  async getWorkShift(id: string): Promise<WorkShift | undefined> {
+    const [shift] = await db.select().from(workShifts).where(eq(workShifts.id, id));
+    return shift;
+  }
+
+  async createWorkShift(shift: InsertWorkShift): Promise<WorkShift> {
+    const [created] = await db.insert(workShifts).values(shift).returning();
+    return created;
+  }
+
+  async deleteWorkShift(id: string): Promise<void> {
+    await db.delete(workShifts).where(eq(workShifts.id, id));
+  }
+
+  async getAttendanceScans(workerId: string): Promise<AttendanceScan[]> {
+    return db.select().from(attendanceScans).where(eq(attendanceScans.workerId, workerId));
+  }
+
+  async createAttendanceScan(scan: InsertAttendanceScan): Promise<AttendanceScan> {
+    const [created] = await db.insert(attendanceScans).values(scan).returning();
+    return created;
+  }
+
+  async getAttendanceDays(workerId: string, startDate?: string, endDate?: string): Promise<AttendanceDay[]> {
+    const conditions = [eq(attendanceDays.workerId, workerId)];
+    if (startDate) conditions.push(gte(attendanceDays.date, startDate));
+    if (endDate) conditions.push(lte(attendanceDays.date, endDate));
+    return db.select().from(attendanceDays).where(and(...conditions));
+  }
+
+  async getAllAttendanceDays(startDate?: string, endDate?: string): Promise<AttendanceDay[]> {
+    const conditions = [];
+    if (startDate) conditions.push(gte(attendanceDays.date, startDate));
+    if (endDate) conditions.push(lte(attendanceDays.date, endDate));
+    if (conditions.length > 0) {
+      return db.select().from(attendanceDays).where(and(...conditions));
+    }
+    return db.select().from(attendanceDays);
+  }
+
+  async getAttendanceDay(workerId: string, date: string): Promise<AttendanceDay | undefined> {
+    const [day] = await db.select().from(attendanceDays).where(
+      and(eq(attendanceDays.workerId, workerId), eq(attendanceDays.date, date))
+    );
+    return day;
+  }
+
+  async upsertAttendanceDay(data: InsertAttendanceDay): Promise<AttendanceDay> {
+    const existing = await this.getAttendanceDay(data.workerId, data.date);
+    if (existing) {
+      const [updated] = await db.update(attendanceDays).set(data).where(eq(attendanceDays.id, existing.id)).returning();
+      return updated;
+    }
+    const [created] = await db.insert(attendanceDays).values(data).returning();
+    return created;
+  }
+
+  async deleteAttendanceDay(id: string): Promise<void> {
+    await db.delete(attendanceDays).where(eq(attendanceDays.id, id));
+  }
+
+  async getHolidays(): Promise<Holiday[]> {
+    return db.select().from(holidays);
+  }
+
+  async createHoliday(holiday: InsertHoliday): Promise<Holiday> {
+    const [created] = await db.insert(holidays).values(holiday).returning();
+    return created;
+  }
+
+  async deleteHoliday(id: string): Promise<void> {
+    await db.delete(holidays).where(eq(holidays.id, id));
+  }
+
+  async getWorkerWarnings(workerId: string): Promise<WorkerWarning[]> {
+    return db.select().from(workerWarnings).where(eq(workerWarnings.workerId, workerId));
+  }
+
+  async getAllWorkerWarnings(startDate?: string, endDate?: string): Promise<WorkerWarning[]> {
+    const conditions = [];
+    if (startDate) conditions.push(gte(workerWarnings.date, startDate));
+    if (endDate) conditions.push(lte(workerWarnings.date, endDate));
+    if (conditions.length > 0) {
+      return db.select().from(workerWarnings).where(and(...conditions));
+    }
+    return db.select().from(workerWarnings);
+  }
+
+  async createWorkerWarning(warning: InsertWorkerWarning): Promise<WorkerWarning> {
+    const [created] = await db.insert(workerWarnings).values(warning).returning();
+    return created;
+  }
+
+  async deleteWorkerWarning(id: string): Promise<void> {
+    await db.delete(workerWarnings).where(eq(workerWarnings.id, id));
   }
 }
 

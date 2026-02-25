@@ -1,0 +1,168 @@
+# Financial Transfers System (نظام التحويلات المالية)
+
+## Overview
+Arabic RTL financial transfers management system between companies with a parent company acting as intermediary. Companies can send money to each other through the parent company, with an approval workflow for transfers. Currency: Algerian Dinar (د.ج).
+
+## Authentication
+- Custom username/password authentication with bcrypt hashing
+- Session-based auth with express-session + connect-pg-simple
+- Parent company: admin/admin123
+- Child companies: alnoor/1234, alamal/1234, alriyadh/1234, alkhaleej/1234
+- Operators: restricted user type that can only create trips and view odometer readings (managed by parent from dashboard)
+- App Users: custom users created by parent admin with granular permissions (managed from /users page)
+  - 3 user types: company, operator, app_user
+  - App users have permissions array controlling access to sections
+  - Available permission sections: companies, transfers, expenses, members, external_debts, trucks, external_funds, projects, factory, workers, account_statement, view_totals
+  - App users operate with parent company context (session stores parent companyId)
+  - Inactive app_users are blocked from login
+
+## Recent Changes
+- Initial MVP built (Feb 2026)
+- Custom username/password auth replacing Replit Auth
+- Company CRUD with edit/delete (parent-only)
+- Transfer creation with role-based sender selection
+- Child companies can only send from their own account
+- Parent can transfer from/to any company
+- Dynamic expense categories (customizable, stored in DB)
+- Members system with customizable member types and money transfers
+- Balance/debt visibility restricted for child companies
+- WhatsApp notifications via wa.me link on transfer create/approve/reject
+- Each company sends WhatsApp from its own account to the other party only
+- Parent company phone number editable from dashboard
+- External debts system: track money borrowed from external people with partial/full repayment
+- Trucks system: manage trucks with four expense categories (fuel, general expenses, food, driver wage) + income tracking
+- Parent company comprehensive account statement including all financial activities (transfers, expenses, members, truck expenses, truck trips with detailed breakdown, debt payments, external funds, project transactions)
+- External funds system: track incoming/outgoing money from/to external parties (separate from debts)
+- Projects system: track project income (دخول أموال) and expenses (خروج أموال) per project with balance tracking
+- Factory system (المصنع): workshops with machines, workers, spare parts warehouse, raw materials, daily production tracking, and monthly statistics
+- Attendance & Payroll system: clock in/out with 10-min gap, shifts, holidays, warnings, overtime tracking, bonus calculation, salary statements with print
+- Currency: Algerian Dinar (د.ج)
+
+## Architecture
+- **Frontend**: React + Vite + TanStack Query + Wouter + Shadcn UI
+- **Backend**: Express.js with REST API
+- **Database**: PostgreSQL with Drizzle ORM
+- **Styling**: Tailwind CSS with RTL support, Cairo Arabic font
+
+### Key Files
+- `shared/schema.ts` - Database schema (companies, transfers, expenses, expense_categories, member_types, members, member_transfers, external_debts, debt_payments, trucks, truck_expenses, truck_trips, external_funds, projects, project_transactions, operators, workshops, workshop_expense_categories, workshop_expenses, machines, workers, worker_companies, worker_transactions, work_shifts, attendance_scans, attendance_days, holidays, worker_warnings, machine_daily_entries, spare_parts_items, spare_parts_purchases, spare_parts_consumption, raw_materials, raw_material_purchases, sessions)
+- `server/routes.ts` - API endpoints
+- `server/storage.ts` - Database storage layer
+- `server/db.ts` - Database connection
+- `server/seed.ts` - Seed data (includes default expense categories)
+- `client/src/pages/dashboard.tsx` - Main dashboard
+- `client/src/pages/companies.tsx` - Companies management (edit/delete)
+- `client/src/pages/transfers.tsx` - Transfers management with approval workflow
+- `client/src/pages/expenses.tsx` - Expenses management with dynamic categories (parent-only)
+- `client/src/pages/members.tsx` - Members management with transfers (parent-only)
+- `client/src/pages/external-debts.tsx` - External debts tracking with partial/full repayment (parent-only)
+- `client/src/pages/trucks.tsx` - Trucks management with expenses, trips, and monthly statements (parent-only)
+- `client/src/pages/external-funds.tsx` - External funds tracking (parent-only)
+- `client/src/pages/projects.tsx` - Projects management with income/expense tracking (parent-only)
+- `client/src/pages/factory.tsx` - Factory management with workshops, machines, workers, production, inventory (parent-only)
+- `client/src/pages/workers-management.tsx` - Independent workers management with companies, transactions, Excel import (parent-only)
+- `client/src/pages/attendance.tsx` - Attendance & payroll: clock in/out, shifts, holidays, warnings, overtime, bonuses, salary statements (parent-only)
+- `client/src/pages/account-statement.tsx` - Account statements with comprehensive parent view
+- `client/src/pages/operator-dashboard.tsx` - Operator restricted view (trips + odometer only)
+- `client/src/components/app-sidebar.tsx` - RTL sidebar navigation
+- `client/src/hooks/use-auth.ts` - Auth hook
+- `client/src/pages/landing.tsx` - Login page
+
+### API Endpoints
+- `POST /api/auth/login` - Login with username/password
+- `POST /api/auth/logout` - Logout
+- `GET /api/auth/me` - Get current user
+- `GET /api/companies` - List all companies (balance hidden for child viewing others)
+- `POST /api/companies` - Create company (parent-only)
+- `PATCH /api/companies/:id` - Update company (parent-only)
+- `DELETE /api/companies/:id` - Delete company (parent-only)
+- `GET /api/transfers` - List transfers (filtered by role)
+- `POST /api/transfers` - Create transfer (child: only from self)
+- `PATCH /api/transfers/:id/approve` - Approve transfer (parent-only)
+- `PATCH /api/transfers/:id/reject` - Reject transfer (parent-only)
+- `GET /api/expense-categories` - List expense categories (parent-only)
+- `POST /api/expense-categories` - Create expense category (parent-only)
+- `DELETE /api/expense-categories/:id` - Delete expense category (parent-only)
+- `GET /api/expenses` - List expenses (parent-only)
+- `POST /api/expenses` - Create expense (parent-only)
+- `DELETE /api/expenses/:id` - Delete expense (parent-only)
+- `GET /api/member-types` - List member types (parent-only)
+- `POST /api/member-types` - Create member type (parent-only)
+- `DELETE /api/member-types/:id` - Delete member type (parent-only)
+- `GET /api/members` - List members (parent-only)
+- `POST /api/members` - Create member (parent-only)
+- `PATCH /api/members/:id` - Update member (parent-only)
+- `DELETE /api/members/:id` - Delete member and transfers (parent-only)
+- `GET /api/member-transfers` - List all member transfers (parent-only)
+- `POST /api/member-transfers` - Transfer money to member (deducts from parent balance)
+- `DELETE /api/member-transfers/:id` - Delete member transfer (restores parent balance)
+- `GET /api/external-debts` - List external debts (parent-only)
+- `GET /api/external-debts/:id` - Get single external debt (parent-only)
+- `POST /api/external-debts` - Create external debt (parent-only)
+- `PATCH /api/external-debts/:id` - Update external debt (parent-only)
+- `DELETE /api/external-debts/:id` - Delete external debt and payments (parent-only)
+- `GET /api/external-debts/:debtId/payments` - List payments for a debt (parent-only)
+- `POST /api/external-debts/:debtId/payments` - Add payment to debt (parent-only)
+- `DELETE /api/external-debts/:debtId/payments/:id` - Delete payment (parent-only)
+- `GET /api/debt-payments` - List all debt payments (parent-only, for account statement)
+- `GET /api/trucks` - List trucks (parent-only)
+- `POST /api/trucks` - Create truck (parent-only)
+- `DELETE /api/trucks/:id` - Delete truck and expenses (parent-only)
+- `GET /api/trucks/:id/expenses` - List truck expenses (parent-only)
+- `GET /api/truck-expenses` - List all truck expenses (parent-only, for account statement)
+- `POST /api/trucks/:id/expenses` - Create truck expense/income (parent-only)
+- `DELETE /api/trucks/:truckId/expenses/:id` - Delete truck expense (parent-only)
+- `GET /api/external-funds` - List external funds (parent-only)
+- `POST /api/external-funds` - Create external fund entry (parent-only)
+- `DELETE /api/external-funds/:id` - Delete external fund entry (parent-only)
+- `GET /api/projects` - List projects (parent-only)
+- `POST /api/projects` - Create project (parent-only)
+- `DELETE /api/projects/:id` - Delete project and transactions (parent-only)
+- `GET /api/projects/:projectId/transactions` - List project transactions (parent-only)
+- `GET /api/project-transactions` - List all project transactions (parent-only, for account statement)
+- `POST /api/projects/:projectId/transactions` - Create project transaction (parent-only)
+- `DELETE /api/projects/:projectId/transactions/:id` - Delete project transaction (parent-only)
+- `GET /api/operators` - List operators (parent-only)
+- `POST /api/operators` - Create operator (parent-only)
+- `DELETE /api/operators/:id` - Delete operator (parent-only)
+- `GET /api/app-users` - List app users (parent-only)
+- `POST /api/app-users` - Create app user (parent-only)
+- `PATCH /api/app-users/:id` - Update app user (parent-only)
+- `DELETE /api/app-users/:id` - Delete app user (parent-only)
+
+### Business Logic
+- Parent company acts as intermediary for all transfers
+- Parent can transfer from any company to any company
+- Child companies can send transfers from their own account to any other company
+- Child companies can only see their own balance/debt (not other companies')
+- Transfers require approval from the receiving company (or parent) before execution
+- On approval: sender balance decreases, receiver balance increases
+- On rejection: no balance changes
+- Balances can go negative (no insufficient balance check)
+- Expenses deduct from parent company balance; deletion restores balance
+- Expense categories are dynamic and customizable (stored in expense_categories table)
+- Members have customizable types (stored in member_types table)
+- Member transfers deduct from parent balance and add to member balance
+- Deleting member transfer reverses balance changes
+- WhatsApp notifications via wa.me links on transfer create/approve/reject
+- Each company has optional phone for WhatsApp notifications
+- On create: sender's WhatsApp opens with message to receiver only
+- On approve/reject: receiver's WhatsApp opens with message to sender only
+- Parent company phone number editable from dashboard
+- External debts: track money borrowed from external people
+- Debt payments support partial and full repayment with history tracking
+- Deleting a payment reverses the paid amount on the debt
+- Trucks: manage trucks with number, driver name, and balance tracking
+- Truck expenses have four categories: fuel (بنزين), general expenses (مصاريف عامة), food (أكل), driver wage (أجرة السائق)
+- Truck expenses deduct from parent balance; truck income adds to parent balance
+- Truck balance tracks net income minus expenses per truck
+- External funds: track incoming/outgoing money from/to external parties (separate from debts)
+- Incoming external funds add to parent balance; outgoing deducts from parent balance
+- Deleting external fund entry reverses the balance change
+- External funds entries appear in parent comprehensive account statement
+- Projects: track income (دخول أموال) and expenses (خروج أموال) per project
+- Project income adds to parent balance; project expenses deduct from parent balance
+- Project balance tracks net income minus expenses per project
+- Deleting a project reverses all its transactions' balance effects on parent
+- Project transactions appear in parent comprehensive account statement
+- Parent company comprehensive account statement aggregates all financial activities

@@ -1,265 +1,488 @@
 import { sql } from "drizzle-orm";
-import { pgTable, text, varchar, integer, real, timestamp, pgEnum, boolean } from "drizzle-orm/pg-core";
+import { pgTable, text, varchar, numeric, timestamp, boolean, index, jsonb, date, integer } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
-export const userRoleEnum = pgEnum("user_role", ["admin", "user", "warehouse"]);
+export const sessions = pgTable(
+  "sessions",
+  {
+    sid: varchar("sid").primaryKey(),
+    sess: jsonb("sess").notNull(),
+    expire: timestamp("expire").notNull(),
+  },
+  (table) => [index("IDX_session_expire").on(table.expire)]
+);
 
-export const users = pgTable("users", {
-  id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
+export const companies = pgTable("companies", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  name: text("name").notNull(),
   username: text("username").notNull().unique(),
   password: text("password").notNull(),
-  displayName: text("display_name").notNull(),
-  role: userRoleEnum("role").notNull().default("user"),
-  active: boolean("active").notNull().default(true),
-  createdAt: timestamp("created_at").defaultNow(),
-});
-
-export const productStatusEnum = pgEnum("product_status", [
-  "purchase_order",
-  "ordered",
-  "received",
-  "semi_manufactured",
-  "shipping",
-  "arrived",
-]);
-
-export const currencyEnum = pgEnum("currency", ["CNY", "USD"]);
-
-export const categories = pgTable("categories", {
-  id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
-  name: text("name").notNull(),
-});
-
-export const suppliers = pgTable("suppliers", {
-  id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
-  name: text("name").notNull(),
   phone: text("phone"),
-  address: text("address"),
+  whatsappApiKey: text("whatsapp_api_key"),
+  balance: numeric("balance", { precision: 15, scale: 2 }).notNull().default("0"),
+  debtToParent: numeric("debt_to_parent", { precision: 15, scale: 2 }).notNull().default("0"),
+  isParent: boolean("is_parent").notNull().default(false),
 });
 
-export const shippingCompanies = pgTable("shipping_companies", {
-  id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
-  name: text("name").notNull(),
-  phone: text("phone"),
-  address: text("address"),
-});
-
-export const warehouses = pgTable("warehouses", {
-  id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
-  name: text("name").notNull(),
-});
-
-export const products = pgTable("products", {
-  id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
-  name: text("name").notNull(),
-  nameZh: text("name_zh"),
-  quantity: integer("quantity").notNull().default(0),
-  categoryId: integer("category_id").references(() => categories.id),
-  status: productStatusEnum("status").notNull().default("purchase_order"),
-  statusChangedAt: timestamp("status_changed_at").defaultNow(),
-});
-
-export const productParts = pgTable("product_parts", {
-  id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
-  productId: integer("product_id").references(() => products.id).notNull(),
-  name: text("name").notNull(),
-  quantity: integer("quantity").notNull().default(0),
-  length: real("length"),
-  width: real("width"),
-  height: real("height"),
-  weight: real("weight"),
-  piecesPerCarton: integer("pieces_per_carton"),
-});
-
-export const orders = pgTable("orders", {
-  id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
-  supplierId: integer("supplier_id").references(() => suppliers.id).notNull(),
-  createdAt: timestamp("created_at").defaultNow(),
-  confirmed: text("confirmed").notNull().default("pending"),
-});
-
-export const orderItems = pgTable("order_items", {
-  id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
-  orderId: integer("order_id").references(() => orders.id).notNull(),
-  productId: integer("product_id").references(() => products.id).notNull(),
-  quantityRequested: integer("quantity_requested").notNull(),
-  quantityOrdered: integer("quantity_ordered").notNull(),
-  price: real("price").notNull().default(0),
-  currency: currencyEnum("currency").notNull().default("CNY"),
-});
-
-export const deliveries = pgTable("deliveries", {
-  id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
-  orderId: integer("order_id").references(() => orders.id),
-  supplierId: integer("supplier_id").references(() => suppliers.id).notNull(),
-  warehouseId: integer("warehouse_id").references(() => warehouses.id).notNull(),
-  createdAt: timestamp("created_at").defaultNow(),
-});
-
-export const deliveryItems = pgTable("delivery_items", {
-  id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
-  deliveryId: integer("delivery_id").references(() => deliveries.id).notNull(),
-  productId: integer("product_id").references(() => products.id).notNull(),
-  quantity: integer("quantity").notNull(),
-  price: real("price").notNull().default(0),
-  currency: currencyEnum("currency").notNull().default("CNY"),
-  length: real("length"),
-  width: real("width"),
-  height: real("height"),
-  weight: real("weight"),
-  piecesPerCarton: integer("pieces_per_carton"),
-});
-
-export const containers = pgTable("containers", {
-  id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
-  invoiceNumber: text("invoice_number"),
-  containerNumber: text("container_number"),
-  shippingCompany: text("shipping_company"),
-  shippingCompanyId: integer("shipping_company_id").references(() => shippingCompanies.id),
-  priceCNY: real("price_cny").default(0),
-  priceUSD: real("price_usd").default(0),
-  warehouseId: integer("warehouse_id").references(() => warehouses.id),
-  status: text("status").notNull().default("shipping"),
-  createdAt: timestamp("created_at").defaultNow(),
-});
-
-export const containerItems = pgTable("container_items", {
-  id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
-  containerId: integer("container_id").references(() => containers.id).notNull(),
-  productId: integer("product_id").references(() => products.id).notNull(),
-  quantity: integer("quantity").notNull(),
-});
-
-export const userCategories = pgTable("user_categories", {
-  id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
-  userId: integer("user_id").references(() => users.id).notNull(),
-  categoryId: integer("category_id").references(() => categories.id).notNull(),
-});
-
-export const payments = pgTable("payments", {
-  id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
-  supplierId: integer("supplier_id").references(() => suppliers.id).notNull(),
-  amount: real("amount").notNull(),
-  currency: currencyEnum("currency").notNull().default("CNY"),
+export const transfers = pgTable("transfers", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  fromCompanyId: varchar("from_company_id").notNull().references(() => companies.id),
+  toCompanyId: varchar("to_company_id").notNull().references(() => companies.id),
+  amount: numeric("amount", { precision: 15, scale: 2 }).notNull(),
+  status: text("status").notNull().default("pending"),
   note: text("note"),
-  createdAt: timestamp("created_at").defaultNow(),
+  date: text("date"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
-export const shippingPayments = pgTable("shipping_payments", {
-  id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
-  shippingCompanyId: integer("shipping_company_id").references(() => shippingCompanies.id).notNull(),
-  amount: real("amount").notNull(),
-  currency: currencyEnum("currency").notNull().default("CNY"),
-  note: text("note"),
-  createdAt: timestamp("created_at").defaultNow(),
+export const expenseCategories = pgTable("expense_categories", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  name: text("name").notNull(),
 });
 
 export const expenses = pgTable("expenses", {
-  id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
-  title: text("title").notNull(),
-  amount: real("amount").notNull(),
-  currency: currencyEnum("currency").notNull().default("CNY"),
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  category: text("category").notNull(),
+  amount: numeric("amount", { precision: 15, scale: 2 }).notNull(),
   description: text("description"),
-  createdAt: timestamp("created_at").defaultNow(),
+  date: text("date"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
-export const cashboxTransactionTypeEnum = pgEnum("cashbox_transaction_type", ["income", "expense"]);
-export const cashboxCategoryEnum = pgEnum("cashbox_category", ["supplier", "shipping", "other", "expense"]);
-
-export const cashboxTransactions = pgTable("cashbox_transactions", {
-  id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
-  type: cashboxTransactionTypeEnum("type").notNull(),
-  category: cashboxCategoryEnum("category").notNull().default("other"),
-  amount: real("amount").notNull(),
-  currency: currencyEnum("currency").notNull().default("CNY"),
-  supplierId: integer("supplier_id").references(() => suppliers.id),
-  shippingCompanyId: integer("shipping_company_id").references(() => shippingCompanies.id),
-  paymentId: integer("payment_id").references(() => payments.id),
-  shippingPaymentId: integer("shipping_payment_id").references(() => shippingPayments.id),
-  expenseId: integer("expense_id").references(() => expenses.id),
-  description: text("description"),
-  createdAt: timestamp("created_at").defaultNow(),
+export const memberTypes = pgTable("member_types", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  name: text("name").notNull(),
 });
 
-export const containerDocuments = pgTable("container_documents", {
-  id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
-  containerId: integer("container_id").references(() => containers.id).notNull(),
-  invoiceNumber: text("invoice_number"),
-  invoiceDate: timestamp("invoice_date"),
-  shippingBill: boolean("shipping_bill").default(false),
-  originCertificate: boolean("origin_certificate").default(false),
-  conformityCertificate: boolean("conformity_certificate").default(false),
-  invoice: text("invoice"),
-  moneyArrival: real("money_arrival"),
-  moneyArrivalCurrency: currencyEnum("money_arrival_currency").default("CNY"),
-  cashboxTransactionId: integer("cashbox_transaction_id"),
-  groupInvoiceId: integer("group_invoice_id"),
-  createdAt: timestamp("created_at").defaultNow(),
+export const members = pgTable("members", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  name: text("name").notNull(),
+  phone: text("phone"),
+  typeId: varchar("type_id").notNull().references(() => memberTypes.id),
+  balance: numeric("balance", { precision: 15, scale: 2 }).notNull().default("0"),
 });
 
-export const insertContainerDocumentSchema = createInsertSchema(containerDocuments).omit({ id: true, createdAt: true });
+export const memberTransfers = pgTable("member_transfers", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  memberId: varchar("member_id").notNull().references(() => members.id),
+  amount: numeric("amount", { precision: 15, scale: 2 }).notNull(),
+  note: text("note"),
+  date: text("date"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
 
-export const insertProductPartSchema = createInsertSchema(productParts).omit({ id: true });
-export const insertCategorySchema = createInsertSchema(categories).omit({ id: true });
-export const insertSupplierSchema = createInsertSchema(suppliers).omit({ id: true });
-export const insertShippingCompanySchema = createInsertSchema(shippingCompanies).omit({ id: true });
-export const insertWarehouseSchema = createInsertSchema(warehouses).omit({ id: true });
-export const insertProductSchema = createInsertSchema(products).omit({ id: true, statusChangedAt: true });
-export const insertOrderSchema = createInsertSchema(orders).omit({ id: true, createdAt: true });
-export const insertOrderItemSchema = createInsertSchema(orderItems).omit({ id: true });
-export const insertDeliverySchema = createInsertSchema(deliveries).omit({ id: true, createdAt: true });
-export const insertDeliveryItemSchema = createInsertSchema(deliveryItems).omit({ id: true });
-export const insertContainerSchema = createInsertSchema(containers).omit({ id: true, createdAt: true });
-export const insertContainerItemSchema = createInsertSchema(containerItems).omit({ id: true });
-export const insertPaymentSchema = createInsertSchema(payments).omit({ id: true, createdAt: true });
-export const insertShippingPaymentSchema = createInsertSchema(shippingPayments).omit({ id: true, createdAt: true });
+export const externalDebts = pgTable("external_debts", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  personName: text("person_name").notNull(),
+  phone: text("phone"),
+  totalAmount: numeric("total_amount", { precision: 15, scale: 2 }).notNull(),
+  paidAmount: numeric("paid_amount", { precision: 15, scale: 2 }).notNull().default("0"),
+  note: text("note"),
+  date: text("date"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export const debtPayments = pgTable("debt_payments", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  debtId: varchar("debt_id").notNull().references(() => externalDebts.id),
+  amount: numeric("amount", { precision: 15, scale: 2 }).notNull(),
+  note: text("note"),
+  date: text("date"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export const insertCompanySchema = createInsertSchema(companies).omit({ id: true, debtToParent: true, password: true });
+export const insertTransferSchema = createInsertSchema(transfers).omit({ id: true, createdAt: true, status: true });
 export const insertExpenseSchema = createInsertSchema(expenses).omit({ id: true, createdAt: true });
+export const insertExpenseCategorySchema = createInsertSchema(expenseCategories).omit({ id: true });
+export const insertMemberTypeSchema = createInsertSchema(memberTypes).omit({ id: true });
+export const insertMemberSchema = createInsertSchema(members).omit({ id: true });
+export const insertMemberTransferSchema = createInsertSchema(memberTransfers).omit({ id: true, createdAt: true });
+export const trucks = pgTable("trucks", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  number: text("number").notNull(),
+  driverName: text("driver_name").notNull(),
+  balance: numeric("balance", { precision: 15, scale: 2 }).notNull().default("0"),
+  fuelFormula: numeric("fuel_formula", { precision: 15, scale: 4 }).notNull().default("0"),
+  driverWage: numeric("driver_wage", { precision: 15, scale: 2 }).notNull().default("0"),
+  driverCommissionRate: numeric("driver_commission_rate", { precision: 5, scale: 2 }).notNull().default("0"),
+});
 
-export type InsertCategory = z.infer<typeof insertCategorySchema>;
-export type Category = typeof categories.$inferSelect;
-export type InsertSupplier = z.infer<typeof insertSupplierSchema>;
-export type Supplier = typeof suppliers.$inferSelect;
-export type InsertShippingCompany = z.infer<typeof insertShippingCompanySchema>;
-export type ShippingCompany = typeof shippingCompanies.$inferSelect;
-export type InsertWarehouse = z.infer<typeof insertWarehouseSchema>;
-export type Warehouse = typeof warehouses.$inferSelect;
-export type InsertProduct = z.infer<typeof insertProductSchema>;
-export type Product = typeof products.$inferSelect;
-export type InsertOrder = z.infer<typeof insertOrderSchema>;
-export type Order = typeof orders.$inferSelect;
-export type InsertOrderItem = z.infer<typeof insertOrderItemSchema>;
-export type OrderItem = typeof orderItems.$inferSelect;
-export type InsertDelivery = z.infer<typeof insertDeliverySchema>;
-export type Delivery = typeof deliveries.$inferSelect;
-export type InsertDeliveryItem = z.infer<typeof insertDeliveryItemSchema>;
-export type DeliveryItem = typeof deliveryItems.$inferSelect;
-export type InsertContainer = z.infer<typeof insertContainerSchema>;
-export type Container = typeof containers.$inferSelect;
-export type InsertContainerItem = z.infer<typeof insertContainerItemSchema>;
-export type ContainerItem = typeof containerItems.$inferSelect;
-export type InsertPayment = z.infer<typeof insertPaymentSchema>;
-export type Payment = typeof payments.$inferSelect;
-export type InsertShippingPayment = z.infer<typeof insertShippingPaymentSchema>;
-export type ShippingPayment = typeof shippingPayments.$inferSelect;
+export const truckExpenses = pgTable("truck_expenses", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  truckId: varchar("truck_id").notNull().references(() => trucks.id),
+  category: text("category").notNull(),
+  amount: numeric("amount", { precision: 15, scale: 2 }).notNull(),
+  type: text("type").notNull().default("expense"),
+  description: text("description"),
+  date: text("date"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
 
-export type InsertProductPart = z.infer<typeof insertProductPartSchema>;
-export type ProductPart = typeof productParts.$inferSelect;
+export const truckTrips = pgTable("truck_trips", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  truckId: varchar("truck_id").notNull().references(() => trucks.id),
+  departureLocation: text("departure_location").notNull(),
+  arrivalLocation: text("arrival_location").notNull(),
+  fuelExpense: numeric("fuel_expense", { precision: 15, scale: 2 }).notNull().default("0"),
+  foodExpense: numeric("food_expense", { precision: 15, scale: 2 }).notNull().default("0"),
+  sparePartsExpense: numeric("spare_parts_expense", { precision: 15, scale: 2 }).notNull().default("0"),
+  oldOdometer: numeric("old_odometer", { precision: 15, scale: 2 }).notNull().default("0"),
+  newOdometer: numeric("new_odometer", { precision: 15, scale: 2 }).notNull().default("0"),
+  tripFare: numeric("trip_fare", { precision: 15, scale: 2 }).notNull().default("0"),
+  expectedFuel: numeric("expected_fuel", { precision: 15, scale: 2 }).notNull().default("0"),
+  driverWageEntry: numeric("driver_wage_entry", { precision: 15, scale: 2 }).notNull().default("0"),
+  commissionEntry: numeric("commission_entry", { precision: 15, scale: 2 }).notNull().default("0"),
+  netResult: numeric("net_result", { precision: 15, scale: 2 }).notNull().default("0"),
+  date: text("date"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
 
+export const externalFunds = pgTable("external_funds", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  personName: text("person_name").notNull(),
+  phone: text("phone"),
+  amount: numeric("amount", { precision: 15, scale: 2 }).notNull(),
+  type: text("type").notNull().default("incoming"),
+  description: text("description"),
+  date: text("date"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export const projects = pgTable("projects", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  name: text("name").notNull(),
+  description: text("description"),
+  balance: numeric("balance", { precision: 15, scale: 2 }).notNull().default("0"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export const projectTransactions = pgTable("project_transactions", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  projectId: varchar("project_id").notNull().references(() => projects.id),
+  amount: numeric("amount", { precision: 15, scale: 2 }).notNull(),
+  type: text("type").notNull().default("income"),
+  description: text("description"),
+  date: text("date"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+// Factory System
+export const factorySettings = pgTable("factory_settings", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  balance: numeric("balance", { precision: 15, scale: 2 }).notNull().default("0"),
+});
+
+export const workshops = pgTable("workshops", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  name: text("name").notNull(),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export const workshopExpenseCategories = pgTable("workshop_expense_categories", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  name: text("name").notNull(),
+});
+
+export const workshopExpenses = pgTable("workshop_expenses", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  workshopId: varchar("workshop_id").notNull().references(() => workshops.id),
+  category: text("category").notNull(),
+  amount: numeric("amount", { precision: 15, scale: 2 }).notNull(),
+  description: text("description"),
+  date: text("date"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export const machines = pgTable("machines", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  workshopId: varchar("workshop_id").notNull().references(() => workshops.id),
+  name: text("name").notNull(),
+  type: text("type").notNull().default("counter"),
+  expectedDailyOutput: numeric("expected_daily_output", { precision: 15, scale: 2 }).notNull().default("0"),
+  unit: text("unit").notNull().default("kg"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export const workerCompanies = pgTable("worker_companies", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  name: text("name").notNull(),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export const workers = pgTable("workers", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  name: text("name").notNull(),
+  phone: text("phone"),
+  workerNumber: text("worker_number"),
+  workerCompanyId: varchar("worker_company_id").references(() => workerCompanies.id),
+  contractEndDate: text("contract_end_date"),
+  wage: numeric("wage", { precision: 15, scale: 2 }).notNull().default("0"),
+  workPeriod: text("work_period"),
+  workshopId: varchar("workshop_id").references(() => workshops.id),
+  nonRenewalDate: text("non_renewal_date"),
+  balance: numeric("balance", { precision: 15, scale: 2 }).notNull().default("0"),
+  overtimeRate: numeric("overtime_rate", { precision: 15, scale: 2 }).notNull().default("0"),
+  shiftId: varchar("shift_id").references(() => workShifts.id),
+  bonus: numeric("bonus", { precision: 15, scale: 2 }).notNull().default("5000"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export const workerTransactions = pgTable("worker_transactions", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  workerId: varchar("worker_id").notNull().references(() => workers.id),
+  type: text("type").notNull(),
+  amount: numeric("amount", { precision: 15, scale: 2 }).notNull(),
+  note: text("note"),
+  date: text("date"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export const workShifts = pgTable("work_shifts", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  name: text("name").notNull(),
+  startTime: text("start_time").notNull(),
+  endTime: text("end_time").notNull(),
+  lateToleranceMinutes: integer("late_tolerance_minutes").notNull().default(3),
+  earlyLeaveMinutes: integer("early_leave_minutes").notNull().default(10),
+  overtimeAfterMinutes: integer("overtime_after_minutes").notNull().default(30),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export const attendanceScans = pgTable("attendance_scans", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  workerId: varchar("worker_id").notNull().references(() => workers.id),
+  scanTime: timestamp("scan_time").notNull().defaultNow(),
+  type: text("type").notNull(),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export const attendanceDays = pgTable("attendance_days", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  workerId: varchar("worker_id").notNull().references(() => workers.id),
+  date: text("date").notNull(),
+  checkIn: text("check_in"),
+  checkOut: text("check_out"),
+  status: text("status").notNull().default("absent"),
+  lateMinutes: integer("late_minutes").notNull().default(0),
+  earlyLeaveMinutes: integer("early_leave_minutes").notNull().default(0),
+  overtimeMinutes: integer("overtime_minutes").notNull().default(0),
+  shiftId: varchar("shift_id").references(() => workShifts.id),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export const holidays = pgTable("holidays", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  date: text("date").notNull(),
+  name: text("name").notNull(),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export const workerWarnings = pgTable("worker_warnings", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  workerId: varchar("worker_id").notNull().references(() => workers.id),
+  date: text("date").notNull(),
+  reason: text("reason"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export const machineDailyEntries = pgTable("machine_daily_entries", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  machineId: varchar("machine_id").notNull().references(() => machines.id),
+  workerId: varchar("worker_id").notNull().references(() => workers.id),
+  outputValue: numeric("output_value", { precision: 15, scale: 2 }).notNull().default("0"),
+  oldCounter: numeric("old_counter", { precision: 15, scale: 2 }).notNull().default("0"),
+  newCounter: numeric("new_counter", { precision: 15, scale: 2 }).notNull().default("0"),
+  date: text("date"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export const sparePartsItems = pgTable("spare_parts_items", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  name: text("name").notNull(),
+  quantity: numeric("quantity", { precision: 15, scale: 2 }).notNull().default("0"),
+  unit: text("unit").notNull().default("قطعة"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export const sparePartsPurchases = pgTable("spare_parts_purchases", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  sparePartId: varchar("spare_part_id").notNull().references(() => sparePartsItems.id),
+  quantity: numeric("quantity", { precision: 15, scale: 2 }).notNull(),
+  cost: numeric("cost", { precision: 15, scale: 2 }).notNull().default("0"),
+  date: text("date"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export const sparePartsConsumption = pgTable("spare_parts_consumption", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  sparePartId: varchar("spare_part_id").notNull().references(() => sparePartsItems.id),
+  machineId: varchar("machine_id").notNull().references(() => machines.id),
+  quantity: numeric("quantity", { precision: 15, scale: 2 }).notNull(),
+  date: text("date"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export const rawMaterials = pgTable("raw_materials", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  name: text("name").notNull(),
+  quantity: numeric("quantity", { precision: 15, scale: 2 }).notNull().default("0"),
+  unit: text("unit").notNull().default("kg"),
+  workshopId: varchar("workshop_id").references(() => workshops.id),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export const rawMaterialPurchases = pgTable("raw_material_purchases", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  rawMaterialId: varchar("raw_material_id").notNull().references(() => rawMaterials.id),
+  quantity: numeric("quantity", { precision: 15, scale: 2 }).notNull(),
+  cost: numeric("cost", { precision: 15, scale: 2 }).notNull().default("0"),
+  date: text("date"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export const operators = pgTable("operators", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  name: text("name").notNull(),
+  username: text("username").notNull().unique(),
+  password: text("password").notNull(),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export const appUsers = pgTable("app_users", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  username: text("username").notNull().unique(),
+  password: text("password").notNull(),
+  displayName: text("display_name").notNull(),
+  permissions: text("permissions").array().notNull().default(sql`'{}'::text[]`),
+  isActive: boolean("is_active").notNull().default(true),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export const insertOperatorSchema = createInsertSchema(operators).omit({ id: true, createdAt: true });
+export const insertAppUserSchema = createInsertSchema(appUsers).omit({ id: true, createdAt: true });
+
+export const insertWorkshopSchema = createInsertSchema(workshops).omit({ id: true, createdAt: true });
+export const insertWorkshopExpenseCategorySchema = createInsertSchema(workshopExpenseCategories).omit({ id: true });
+export const insertWorkshopExpenseSchema = createInsertSchema(workshopExpenses).omit({ id: true, createdAt: true });
+export const insertMachineSchema = createInsertSchema(machines).omit({ id: true, createdAt: true });
+export const insertWorkerCompanySchema = createInsertSchema(workerCompanies).omit({ id: true, createdAt: true });
+export const insertWorkerSchema = createInsertSchema(workers).omit({ id: true, createdAt: true, balance: true });
+export const insertWorkerTransactionSchema = createInsertSchema(workerTransactions).omit({ id: true, createdAt: true });
+export const insertMachineDailyEntrySchema = createInsertSchema(machineDailyEntries).omit({ id: true, createdAt: true });
+export const insertSparePartItemSchema = createInsertSchema(sparePartsItems).omit({ id: true, createdAt: true });
+export const insertSparePartPurchaseSchema = createInsertSchema(sparePartsPurchases).omit({ id: true, createdAt: true });
+export const insertSparePartConsumptionSchema = createInsertSchema(sparePartsConsumption).omit({ id: true, createdAt: true });
+export const insertRawMaterialSchema = createInsertSchema(rawMaterials).omit({ id: true, createdAt: true });
+export const insertRawMaterialPurchaseSchema = createInsertSchema(rawMaterialPurchases).omit({ id: true, createdAt: true });
+
+export const insertProjectSchema = createInsertSchema(projects).omit({ id: true, createdAt: true, balance: true });
+export const insertProjectTransactionSchema = createInsertSchema(projectTransactions).omit({ id: true, createdAt: true });
+
+export const insertExternalFundSchema = createInsertSchema(externalFunds).omit({ id: true, createdAt: true });
+export const insertExternalDebtSchema = createInsertSchema(externalDebts).omit({ id: true, createdAt: true, paidAmount: true });
+export const insertDebtPaymentSchema = createInsertSchema(debtPayments).omit({ id: true, createdAt: true });
+export const insertTruckSchema = createInsertSchema(trucks).omit({ id: true, balance: true });
+export const insertTruckExpenseSchema = createInsertSchema(truckExpenses).omit({ id: true, createdAt: true });
+export const insertTruckTripSchema = createInsertSchema(truckTrips).omit({ id: true, createdAt: true });
+
+export const insertWorkShiftSchema = createInsertSchema(workShifts).omit({ id: true, createdAt: true });
+export const insertAttendanceScanSchema = createInsertSchema(attendanceScans).omit({ id: true, createdAt: true });
+export const insertAttendanceDaySchema = createInsertSchema(attendanceDays).omit({ id: true, createdAt: true });
+export const insertHolidaySchema = createInsertSchema(holidays).omit({ id: true, createdAt: true });
+export const insertWorkerWarningSchema = createInsertSchema(workerWarnings).omit({ id: true, createdAt: true });
+
+export const loginSchema = z.object({
+  username: z.string().min(1),
+  password: z.string().min(1),
+});
+
+export const registerCompanySchema = z.object({
+  name: z.string().min(1),
+  username: z.string().min(3),
+  password: z.string().min(4),
+  phone: z.string().optional(),
+  whatsappApiKey: z.string().optional(),
+  balance: z.string().optional(),
+});
+
+export const updateCompanySchema = z.object({
+  name: z.string().min(1).optional(),
+  username: z.string().min(3).optional(),
+  password: z.string().min(4).optional(),
+  phone: z.string().optional(),
+  whatsappApiKey: z.string().optional(),
+});
+
+export type InsertCompany = z.infer<typeof insertCompanySchema>;
+export type Company = typeof companies.$inferSelect;
+export type InsertTransfer = z.infer<typeof insertTransferSchema>;
+export type Transfer = typeof transfers.$inferSelect;
 export type InsertExpense = z.infer<typeof insertExpenseSchema>;
 export type Expense = typeof expenses.$inferSelect;
-
-export const insertCashboxTransactionSchema = createInsertSchema(cashboxTransactions).omit({ id: true, createdAt: true });
-export type InsertCashboxTransaction = z.infer<typeof insertCashboxTransactionSchema>;
-export type CashboxTransaction = typeof cashboxTransactions.$inferSelect;
-
-export const insertUserCategorySchema = createInsertSchema(userCategories).omit({ id: true });
-export type InsertUserCategory = z.infer<typeof insertUserCategorySchema>;
-export type UserCategory = typeof userCategories.$inferSelect;
-
-export const insertUserSchema = createInsertSchema(users).omit({ id: true, createdAt: true, active: true });
-export type InsertUser = z.infer<typeof insertUserSchema>;
-export type User = typeof users.$inferSelect;
-
-export type InsertContainerDocument = z.infer<typeof insertContainerDocumentSchema>;
-export type ContainerDocument = typeof containerDocuments.$inferSelect;
+export type ExpenseCategory = typeof expenseCategories.$inferSelect;
+export type InsertExpenseCategory = z.infer<typeof insertExpenseCategorySchema>;
+export type MemberType = typeof memberTypes.$inferSelect;
+export type InsertMemberType = z.infer<typeof insertMemberTypeSchema>;
+export type Member = typeof members.$inferSelect;
+export type InsertMember = z.infer<typeof insertMemberSchema>;
+export type MemberTransfer = typeof memberTransfers.$inferSelect;
+export type InsertMemberTransfer = z.infer<typeof insertMemberTransferSchema>;
+export type ExternalDebt = typeof externalDebts.$inferSelect;
+export type InsertExternalDebt = z.infer<typeof insertExternalDebtSchema>;
+export type DebtPayment = typeof debtPayments.$inferSelect;
+export type InsertDebtPayment = z.infer<typeof insertDebtPaymentSchema>;
+export type Truck = typeof trucks.$inferSelect;
+export type InsertTruck = z.infer<typeof insertTruckSchema>;
+export type TruckExpense = typeof truckExpenses.$inferSelect;
+export type InsertTruckExpense = z.infer<typeof insertTruckExpenseSchema>;
+export type TruckTrip = typeof truckTrips.$inferSelect;
+export type InsertTruckTrip = z.infer<typeof insertTruckTripSchema>;
+export type ExternalFund = typeof externalFunds.$inferSelect;
+export type InsertExternalFund = z.infer<typeof insertExternalFundSchema>;
+export type Project = typeof projects.$inferSelect;
+export type InsertProject = z.infer<typeof insertProjectSchema>;
+export type ProjectTransaction = typeof projectTransactions.$inferSelect;
+export type InsertProjectTransaction = z.infer<typeof insertProjectTransactionSchema>;
+export type Operator = typeof operators.$inferSelect;
+export type InsertOperator = z.infer<typeof insertOperatorSchema>;
+export type FactorySettings = typeof factorySettings.$inferSelect;
+export type Workshop = typeof workshops.$inferSelect;
+export type InsertWorkshop = z.infer<typeof insertWorkshopSchema>;
+export type WorkshopExpenseCategory = typeof workshopExpenseCategories.$inferSelect;
+export type InsertWorkshopExpenseCategory = z.infer<typeof insertWorkshopExpenseCategorySchema>;
+export type WorkshopExpense = typeof workshopExpenses.$inferSelect;
+export type InsertWorkshopExpense = z.infer<typeof insertWorkshopExpenseSchema>;
+export type Machine = typeof machines.$inferSelect;
+export type InsertMachine = z.infer<typeof insertMachineSchema>;
+export type Worker = typeof workers.$inferSelect;
+export type InsertWorker = z.infer<typeof insertWorkerSchema>;
+export type MachineDailyEntry = typeof machineDailyEntries.$inferSelect;
+export type InsertMachineDailyEntry = z.infer<typeof insertMachineDailyEntrySchema>;
+export type SparePartItem = typeof sparePartsItems.$inferSelect;
+export type InsertSparePartItem = z.infer<typeof insertSparePartItemSchema>;
+export type SparePartPurchase = typeof sparePartsPurchases.$inferSelect;
+export type InsertSparePartPurchase = z.infer<typeof insertSparePartPurchaseSchema>;
+export type SparePartConsumption = typeof sparePartsConsumption.$inferSelect;
+export type InsertSparePartConsumption = z.infer<typeof insertSparePartConsumptionSchema>;
+export type RawMaterial = typeof rawMaterials.$inferSelect;
+export type InsertRawMaterial = z.infer<typeof insertRawMaterialSchema>;
+export type RawMaterialPurchase = typeof rawMaterialPurchases.$inferSelect;
+export type InsertRawMaterialPurchase = z.infer<typeof insertRawMaterialPurchaseSchema>;
+export type AppUser = typeof appUsers.$inferSelect;
+export type InsertAppUser = z.infer<typeof insertAppUserSchema>;
+export type WorkerCompany = typeof workerCompanies.$inferSelect;
+export type InsertWorkerCompany = z.infer<typeof insertWorkerCompanySchema>;
+export type WorkerTransaction = typeof workerTransactions.$inferSelect;
+export type InsertWorkerTransaction = z.infer<typeof insertWorkerTransactionSchema>;
+export type WorkShift = typeof workShifts.$inferSelect;
+export type InsertWorkShift = z.infer<typeof insertWorkShiftSchema>;
+export type AttendanceScan = typeof attendanceScans.$inferSelect;
+export type InsertAttendanceScan = z.infer<typeof insertAttendanceScanSchema>;
+export type AttendanceDay = typeof attendanceDays.$inferSelect;
+export type InsertAttendanceDay = z.infer<typeof insertAttendanceDaySchema>;
+export type Holiday = typeof holidays.$inferSelect;
+export type InsertHoliday = z.infer<typeof insertHolidaySchema>;
+export type WorkerWarning = typeof workerWarnings.$inferSelect;
+export type InsertWorkerWarning = z.infer<typeof insertWorkerWarningSchema>;

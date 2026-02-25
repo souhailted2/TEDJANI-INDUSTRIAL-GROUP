@@ -1,64 +1,121 @@
-import { db } from "./db";
-import { categories, suppliers, warehouses, products, users } from "@shared/schema";
-import { eq } from "drizzle-orm";
 import bcrypt from "bcryptjs";
+import { db } from "./db";
+import { companies, transfers, expenseCategories, memberTypes } from "@shared/schema";
+import { log } from "./index";
 
 export async function seedDatabase() {
-  const existingUsers = await db.select().from(users);
-  if (existingUsers.length === 0) {
-    const hashedPassword = await bcrypt.hash("admin123", 10);
-    await db.insert(users).values({
-      username: "admin",
-      password: hashedPassword,
-      displayName: "المدير",
-      role: "admin",
-    });
-    console.log("Admin user created (username: admin, password: admin123)");
+  const existing = await db.select().from(companies);
+  if (existing.length > 0) {
+    const existingCats = await db.select().from(expenseCategories);
+    if (existingCats.length === 0) {
+      await db.insert(expenseCategories).values([
+        { name: "مصاريف المصنع" },
+        { name: "مصاريف العمال" },
+        { name: "مصاريف أخرى" },
+      ]);
+      log("Seeded default expense categories");
+    }
+    log("Database already seeded, skipping");
+    return;
   }
 
-  const existingCategories = await db.select().from(categories);
-  if (existingCategories.length > 0) return;
+  log("Seeding database...");
 
-  console.log("Seeding database...");
+  const hash = (pw: string) => bcrypt.hashSync(pw, 10);
 
-  await db.insert(categories).values([
-    { name: "إلكترونيات" },
-    { name: "ملابس" },
-    { name: "أدوات منزلية" },
-    { name: "قطع غيار" },
-    { name: "ألعاب أطفال" },
+  await db.insert(companies).values({
+    name: "الشركة الأم المركزية",
+    username: "admin",
+    password: hash("admin123"),
+    phone: "966500000000",
+    balance: "0",
+    debtToParent: "0",
+    isParent: true,
+  });
+
+  const [company1] = await db.insert(companies).values({
+    name: "شركة النور للتجارة",
+    username: "alnoor",
+    password: hash("1234"),
+    phone: "966501111111",
+    balance: "25000",
+    debtToParent: "-5000",
+    isParent: false,
+  }).returning();
+
+  const [company2] = await db.insert(companies).values({
+    name: "شركة الأمل للمقاولات",
+    username: "alamal",
+    password: hash("1234"),
+    phone: "966502222222",
+    balance: "18000",
+    debtToParent: "5000",
+    isParent: false,
+  }).returning();
+
+  const [company3] = await db.insert(companies).values({
+    name: "شركة الرياض للتقنية",
+    username: "alriyadh",
+    password: hash("1234"),
+    phone: "966503333333",
+    balance: "32000",
+    debtToParent: "-8500",
+    isParent: false,
+  }).returning();
+
+  const [company4] = await db.insert(companies).values({
+    name: "شركة الخليج للاستثمار",
+    username: "alkhaleej",
+    password: hash("1234"),
+    phone: "966504444444",
+    balance: "45000",
+    debtToParent: "8500",
+    isParent: false,
+  }).returning();
+
+  await db.insert(transfers).values([
+    {
+      fromCompanyId: company1.id,
+      toCompanyId: company2.id,
+      amount: "5000",
+      status: "approved",
+      note: "دفعة مستحقة عن عقد توريد",
+    },
+    {
+      fromCompanyId: company3.id,
+      toCompanyId: company4.id,
+      amount: "8500",
+      status: "approved",
+      note: "سداد فاتورة خدمات",
+    },
+    {
+      fromCompanyId: company3.id,
+      toCompanyId: company1.id,
+      amount: "12000",
+      status: "pending",
+      note: "تحويل ربع سنوي",
+    },
+    {
+      fromCompanyId: company4.id,
+      toCompanyId: company3.id,
+      amount: "3000",
+      status: "rejected",
+      note: "تحويل تجريبي",
+    },
+    {
+      fromCompanyId: company1.id,
+      toCompanyId: company4.id,
+      amount: "15000",
+      status: "pending",
+      note: "دفعة استثمارية",
+    },
   ]);
 
-  await db.insert(suppliers).values([
-    { name: "شركة جوانزو للتجارة", phone: "+86 20 8888 1234", address: "جوانزو، الصين" },
-    { name: "مصنع شنزن للإلكترونيات", phone: "+86 755 2666 5678", address: "شنزن، الصين" },
-    { name: "شركة ييوو العالمية", phone: "+86 579 8523 9012", address: "ييوو، تشجيانغ، الصين" },
+  await db.insert(expenseCategories).values([
+    { name: "مصاريف المصنع" },
+    { name: "مصاريف العمال" },
+    { name: "مصاريف أخرى" },
   ]);
 
-  await db.insert(warehouses).values([
-    { name: "المخزن الرئيسي - جوانزو" },
-    { name: "مخزن شنزن" },
-  ]);
-
-  const allCategories = await db.select().from(categories);
-  const elecId = allCategories.find(c => c.name === "إلكترونيات")?.id;
-  const clothId = allCategories.find(c => c.name === "ملابس")?.id;
-  const homeId = allCategories.find(c => c.name === "أدوات منزلية")?.id;
-  const partsId = allCategories.find(c => c.name === "قطع غيار")?.id;
-  const toysId = allCategories.find(c => c.name === "ألعاب أطفال")?.id;
-
-  await db.insert(products).values([
-    { name: "شاحن لاسلكي 15W", quantity: 500, categoryId: elecId!, status: "purchase_order" },
-    { name: "سماعات بلوتوث TWS", quantity: 300, categoryId: elecId!, status: "purchase_order" },
-    { name: "كابل USB-C 1.5م", quantity: 1000, categoryId: elecId!, status: "purchase_order" },
-    { name: "قميص قطن رجالي", quantity: 200, categoryId: clothId!, status: "purchase_order" },
-    { name: "حقيبة يد نسائية", quantity: 150, categoryId: clothId!, status: "purchase_order" },
-    { name: "طقم أواني طهي", quantity: 100, categoryId: homeId!, status: "purchase_order" },
-    { name: "مكنسة كهربائية صغيرة", quantity: 80, categoryId: homeId!, status: "purchase_order" },
-    { name: "فلتر زيت محرك", quantity: 400, categoryId: partsId!, status: "purchase_order" },
-    { name: "لعبة تعليمية للأطفال", quantity: 250, categoryId: toysId!, status: "purchase_order" },
-    { name: "روبوت ذكي تعليمي", quantity: 120, categoryId: toysId!, status: "purchase_order" },
-  ]);
-
-  console.log("Database seeded successfully!");
+  log("Database seeded successfully");
 }
