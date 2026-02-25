@@ -22,28 +22,34 @@ import type { Company, Transfer, Operator } from "@shared/schema";
 
 type SafeCompany = Omit<Company, "password">;
 
-function StatCard({ title, value, icon: Icon, description, loading }: {
+function StatCard({ title, value, icon: Icon, description, loading, gradient }: {
   title: string;
   value: string | number;
   icon: any;
   description?: string;
   loading?: boolean;
+  gradient?: string;
 }) {
+  const bg = gradient || 'from-emerald-500 to-emerald-600';
   return (
-    <Card>
-      <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0 pb-2">
-        <CardTitle className="text-sm font-medium text-muted-foreground">{title}</CardTitle>
-        <Icon className="h-4 w-4 text-muted-foreground" />
-      </CardHeader>
-      <CardContent>
-        {loading ? (
-          <Skeleton className="h-8 w-24" />
-        ) : (
-          <>
-            <div className="text-2xl font-bold" data-testid={`stat-${title}`}>{value}</div>
-            {description && <p className="text-xs text-muted-foreground mt-1">{description}</p>}
-          </>
-        )}
+    <Card className="overflow-hidden border-0 shadow-md">
+      <CardContent className="p-0">
+        <div className="flex items-stretch">
+          <div className={`w-16 flex-shrink-0 bg-gradient-to-b ${bg} flex items-center justify-center`}>
+            <Icon className="h-6 w-6 text-white" />
+          </div>
+          <div className="flex-1 p-4">
+            <p className="text-xs font-medium text-muted-foreground mb-1">{title}</p>
+            {loading ? (
+              <Skeleton className="h-7 w-20" />
+            ) : (
+              <>
+                <div className="text-xl font-bold" data-testid={`stat-${title}`}>{value}</div>
+                {description && <p className="text-xs text-muted-foreground mt-0.5">{description}</p>}
+              </>
+            )}
+          </div>
+        </div>
       </CardContent>
     </Card>
   );
@@ -278,9 +284,15 @@ export default function Dashboard() {
 
   return (
     <div className="p-6 space-y-6 max-w-6xl mx-auto">
-      <div>
-        <h1 className="text-2xl font-bold" data-testid="text-dashboard-title">لوحة التحكم</h1>
-        <p className="text-muted-foreground text-sm mt-1">نظرة عامة على التحويلات المالية بين الشركات</p>
+      <div className="flex items-center justify-between flex-wrap gap-4">
+        <div>
+          <h1 className="text-2xl font-bold" data-testid="text-dashboard-title">لوحة التحكم</h1>
+          <p className="text-muted-foreground text-sm mt-1">نظرة عامة على التحويلات المالية بين الشركات</p>
+        </div>
+        <div className="flex items-center gap-2 px-4 py-2 rounded-xl bg-primary/5 border border-primary/10">
+          <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+          <span className="text-sm text-muted-foreground">متصل</span>
+        </div>
       </div>
 
       {canViewTotals && (
@@ -291,6 +303,7 @@ export default function Dashboard() {
             icon={Building2}
             description="عدد الشركات المسجلة"
             loading={loading}
+            gradient="from-emerald-500 to-emerald-600"
           />
           <StatCard
             title="التحويلات المعلقة"
@@ -298,6 +311,7 @@ export default function Dashboard() {
             icon={Clock}
             description="بانتظار الموافقة"
             loading={loading}
+            gradient="from-amber-500 to-amber-600"
           />
           <StatCard
             title="التحويلات المكتملة"
@@ -305,6 +319,7 @@ export default function Dashboard() {
             icon={CheckCircle2}
             description="تمت الموافقة عليها"
             loading={loading}
+            gradient="from-teal-500 to-teal-600"
           />
           <StatCard
             title="إجمالي المحول"
@@ -312,6 +327,7 @@ export default function Dashboard() {
             icon={TrendingUp}
             description="إجمالي المبالغ المحولة"
             loading={loading}
+            gradient="from-blue-500 to-blue-600"
           />
         </div>
       )}
