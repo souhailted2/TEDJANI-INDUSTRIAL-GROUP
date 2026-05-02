@@ -14,6 +14,16 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import {
   Select,
   SelectContent,
   SelectItem,
@@ -31,7 +41,20 @@ import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/use-auth";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { formatAmount, formatDateSimple, buildWhatsAppLink } from "@/lib/format";
-import { ArrowLeftRight, Plus, Clock, CheckCircle2, XCircle, Send, ArrowRight, MessageCircle } from "lucide-react";
+import {
+  ArrowLeftRight,
+  Plus,
+  Clock,
+  CheckCircle2,
+  XCircle,
+  Send,
+  ArrowRight,
+  MessageCircle,
+  Search,
+  Trash2,
+  RotateCcw,
+  Filter,
+} from "lucide-react";
 import type { Company, Transfer } from "@shared/schema";
 
 type SafeCompany = Omit<Company, "password">;
@@ -67,7 +90,15 @@ function buildTransferMsg(status: string, fromName: string, toName: string, amou
   return msg;
 }
 
-function TransferCard({ transfer, companies }: { transfer: Transfer; companies: SafeCompany[] }) {
+function TransferCard({
+  transfer,
+  companies,
+  onDeleteRequest,
+}: {
+  transfer: Transfer;
+  companies: SafeCompany[];
+  onDeleteRequest: (id: string) => void;
+}) {
   const { toast } = useToast();
   const { isParent, company: authCompany, user, hasPermission } = useAuth();
   const isAppUser = user?.role === "app_user";
@@ -145,7 +176,7 @@ function TransferCard({ transfer, companies }: { transfer: Transfer; companies: 
             {canViewTotals && (
               <p className="text-lg font-bold whitespace-nowrap" dir="ltr">{formatAmount(transfer.amount)} د.ج</p>
             )}
-            <div className="flex gap-2 flex-wrap">
+            <div className="flex gap-2 flex-wrap justify-end">
               {transfer.status === "pending" && canApproveReject && !isAppUser && (
                 <>
                   <Button
@@ -181,6 +212,17 @@ function TransferCard({ transfer, companies }: { transfer: Transfer; companies: 
                   </Button>
                 </a>
               )}
+              {isParent && (
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="text-muted-foreground hover:text-destructive"
+                  onClick={() => onDeleteRequest(transfer.id)}
+                  data-testid={`button-delete-transfer-${transfer.id}`}
+                >
+                  <Trash2 className="w-4 h-4" />
+                </Button>
+              )}
             </div>
           </div>
         </div>
@@ -188,6 +230,8 @@ function TransferCard({ transfer, companies }: { transfer: Transfer; companies: 
     </Card>
   );
 }
+
+const ALL_VALUE = "__all__";
 
 export default function Transfers() {
   const { toast } = useToast();
@@ -198,7 +242,14 @@ export default function Transfers() {
   const [note, setNote] = useState("");
   const [date, setDate] = useState(new Date().toISOString().split("T")[0]);
 
+  const [searchQuery, setSearchQuery] = useState("");
+  const [filterA, setFilterA] = useState("");
+  const [filterB, setFilterB] = useState("");
+
+  const [deleteId, setDeleteId] = useState<string | null>(null);
+
   const { isParent } = useAuth();
+  const { company: authCompany } = useAuth();
 
   const { data: companies, isLoading: companiesLoading } = useQuery<SafeCompany[]>({
     queryKey: ["/api/companies"],
@@ -208,11 +259,10 @@ export default function Transfers() {
     queryKey: ["/api/transfers"],
   });
 
-  const { company: authCompany } = useAuth();
   const allCompanies = companies || [];
 
   const createMutation = useMutation({
-    mutationFn: async (data: { fromCompanyId: string; toCompanyId: string; amount: string; note?: string }) => {
+    mutationFn: async (data: { fromCompanyId: string; toCompanyId: string; amount: string; note?: string; date?: string }) => {
       const res = await apiRequest("POST", "/api/transfers", data);
       return res.json();
     },
@@ -235,6 +285,21 @@ export default function Transfers() {
     },
   });
 
+  const deleteMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const res = await apiRequest("DELETE", `/api/transfers/${id}`);
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/transfers"] });
+      setDeleteId(null);
+      toast({ title: "تم حذف التحويل بنجاح" });
+    },
+    onError: (err: Error) => {
+      toast({ title: "خطأ", description: err.message, variant: "destructive" });
+    },
+  });
+
   const effectiveFromId = isParent ? fromCompanyId : (authCompany?.id || "");
 
   const handleCreate = () => {
@@ -246,22 +311,74 @@ export default function Transfers() {
       toast({ title: "لا يمكن التحويل لنفس الشركة", variant: "destructive" });
       return;
     }
-    createMutation.mutate({
-      fromCompanyId: effectiveFromId,
-      toCompanyId,
-      amount,
-      note: note || undefined,
-      date,
-    });
+    createMutation.mutate({ fromCompanyId: effectiveFromId, toCompanyId, amount, note: note || undefined, date });
+  };
+
+  const hasFilters = searchQuery.trim() !== "" || filterA !== "" || filterB !== "";
+
+  const resetFilters = () => {
+    setSearchQuery("");
+    setFilterA("");
+    setFilterB("");
   };
 
   const loading = companiesLoading || transfersLoading;
-  const allTransfers = [...(transfers || [])].sort((a, b) =>
+
+  const baseTransfers = [...(transfers || [])].sort((a, b) =>
     new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
   );
-  const pendingTransfers = allTransfers.filter(t => t.status === "pending");
-  const approvedTransfers = allTransfers.filter(t => t.status === "approved");
-  const rejectedTransfers = allTransfers.filter(t => t.status === "rejected");
+
+  function applyFilters(list: Transfer[]): Transfer[] {
+    let result = list;
+
+    if (filterA && filterB) {
+      result = result.filter(t =>
+        (t.fromCompanyId === filterA && t.toCompanyId === filterB) ||
+        (t.fromCompanyId === filterB && t.toCompanyId === filterA)
+      );
+    } else if (filterA) {
+      result = result.filter(t => t.fromCompanyId === filterA || t.toCompanyId === filterA);
+    } else if (filterB) {
+      result = result.filter(t => t.fromCompanyId === filterB || t.toCompanyId === filterB);
+    }
+
+    if (searchQuery.trim()) {
+      const q = searchQuery.trim().toLowerCase();
+      result = result.filter(t => {
+        const from = allCompanies.find(c => c.id === t.fromCompanyId);
+        const to = allCompanies.find(c => c.id === t.toCompanyId);
+        return (
+          (from?.name || "").toLowerCase().includes(q) ||
+          (to?.name || "").toLowerCase().includes(q) ||
+          (t.note || "").toLowerCase().includes(q) ||
+          (t.date || "").includes(q) ||
+          formatDateSimple(t.createdAt).includes(q)
+        );
+      });
+    }
+
+    return result;
+  }
+
+  const allTransfers = applyFilters(baseTransfers);
+  const pendingTransfers = applyFilters(baseTransfers.filter(t => t.status === "pending"));
+  const approvedTransfers = applyFilters(baseTransfers.filter(t => t.status === "approved"));
+  const rejectedTransfers = applyFilters(baseTransfers.filter(t => t.status === "rejected"));
+
+  const renderEmpty = (icon: React.ReactNode, text: string) => (
+    <Card>
+      <CardContent className="py-12 text-center">
+        <div className="w-12 h-12 mx-auto text-muted-foreground/50 mb-4">{icon}</div>
+        <p className="text-muted-foreground text-sm">{text}</p>
+        {hasFilters && (
+          <Button variant="ghost" size="sm" className="mt-3" onClick={resetFilters}>
+            <RotateCcw className="w-3 h-3 ml-1" />
+            مسح الفلاتر
+          </Button>
+        )}
+      </CardContent>
+    </Card>
+  );
 
   return (
     <div className="p-6 space-y-6 max-w-6xl mx-auto">
@@ -296,11 +413,7 @@ export default function Transfers() {
                     </SelectContent>
                   </Select>
                 ) : (
-                  <Input
-                    value={authCompany?.name || ""}
-                    disabled
-                    data-testid="input-from-company-fixed"
-                  />
+                  <Input value={authCompany?.name || ""} disabled data-testid="input-from-company-fixed" />
                 )}
               </div>
               <div className="space-y-2">
@@ -362,6 +475,66 @@ export default function Transfers() {
         </Dialog>
       </div>
 
+      {/* Search & Filter bar */}
+      <Card className="border-dashed">
+        <CardContent className="p-4 space-y-3">
+          <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
+            <Filter className="w-4 h-4" />
+            بحث وفلترة
+          </div>
+          <div className="relative">
+            <Search className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+            <Input
+              className="pr-9"
+              placeholder="ابحث باسم الشركة، الملاحظة، أو التاريخ..."
+              value={searchQuery}
+              onChange={e => setSearchQuery(e.target.value)}
+              data-testid="input-search-transfers"
+            />
+          </div>
+          <div className="flex items-center gap-3 flex-wrap">
+            <div className="flex-1 min-w-[160px]">
+              <Select value={filterA || ALL_VALUE} onValueChange={v => setFilterA(v === ALL_VALUE ? "" : v)}>
+                <SelectTrigger data-testid="select-filter-company-a">
+                  <SelectValue placeholder="الشركة الأولى" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={ALL_VALUE}>— كل الشركات —</SelectItem>
+                  {allCompanies.map(c => (
+                    <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <ArrowLeftRight className="w-4 h-4 text-muted-foreground flex-shrink-0" />
+            <div className="flex-1 min-w-[160px]">
+              <Select value={filterB || ALL_VALUE} onValueChange={v => setFilterB(v === ALL_VALUE ? "" : v)}>
+                <SelectTrigger data-testid="select-filter-company-b">
+                  <SelectValue placeholder="الشركة الثانية" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={ALL_VALUE}>— كل الشركات —</SelectItem>
+                  {allCompanies.filter(c => c.id !== filterA).map(c => (
+                    <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            {hasFilters && (
+              <Button variant="outline" size="sm" onClick={resetFilters} data-testid="button-reset-filters">
+                <RotateCcw className="w-3.5 h-3.5 ml-1" />
+                إعادة تعيين
+              </Button>
+            )}
+          </div>
+          {hasFilters && (
+            <p className="text-xs text-muted-foreground">
+              يعرض <span className="font-semibold">{allTransfers.length}</span> نتيجة
+            </p>
+          )}
+        </CardContent>
+      </Card>
+
       <Tabs defaultValue="all" dir="rtl">
         <TabsList>
           <TabsTrigger value="all" data-testid="tab-all">
@@ -391,56 +564,58 @@ export default function Transfers() {
         ) : (
           <>
             <TabsContent value="all" className="space-y-4 mt-4">
-              {allTransfers.length === 0 ? (
-                <Card>
-                  <CardContent className="py-12 text-center">
-                    <ArrowLeftRight className="w-12 h-12 mx-auto text-muted-foreground/50 mb-4" />
-                    <p className="text-muted-foreground text-sm">لا توجد تحويلات بعد</p>
-                  </CardContent>
-                </Card>
-              ) : (
-                allTransfers.map(t => <TransferCard key={t.id} transfer={t} companies={companies || []} />)
-              )}
+              {allTransfers.length === 0
+                ? renderEmpty(<ArrowLeftRight className="w-full h-full" />, "لا توجد تحويلات")
+                : allTransfers.map(t => (
+                    <TransferCard key={t.id} transfer={t} companies={allCompanies} onDeleteRequest={setDeleteId} />
+                  ))}
             </TabsContent>
             <TabsContent value="pending" className="space-y-4 mt-4">
-              {pendingTransfers.length === 0 ? (
-                <Card>
-                  <CardContent className="py-12 text-center">
-                    <Clock className="w-12 h-12 mx-auto text-muted-foreground/50 mb-4" />
-                    <p className="text-muted-foreground text-sm">لا توجد تحويلات معلقة</p>
-                  </CardContent>
-                </Card>
-              ) : (
-                pendingTransfers.map(t => <TransferCard key={t.id} transfer={t} companies={companies || []} />)
-              )}
+              {pendingTransfers.length === 0
+                ? renderEmpty(<Clock className="w-full h-full" />, "لا توجد تحويلات معلقة")
+                : pendingTransfers.map(t => (
+                    <TransferCard key={t.id} transfer={t} companies={allCompanies} onDeleteRequest={setDeleteId} />
+                  ))}
             </TabsContent>
             <TabsContent value="approved" className="space-y-4 mt-4">
-              {approvedTransfers.length === 0 ? (
-                <Card>
-                  <CardContent className="py-12 text-center">
-                    <CheckCircle2 className="w-12 h-12 mx-auto text-muted-foreground/50 mb-4" />
-                    <p className="text-muted-foreground text-sm">لا توجد تحويلات مكتملة</p>
-                  </CardContent>
-                </Card>
-              ) : (
-                approvedTransfers.map(t => <TransferCard key={t.id} transfer={t} companies={companies || []} />)
-              )}
+              {approvedTransfers.length === 0
+                ? renderEmpty(<CheckCircle2 className="w-full h-full" />, "لا توجد تحويلات مكتملة")
+                : approvedTransfers.map(t => (
+                    <TransferCard key={t.id} transfer={t} companies={allCompanies} onDeleteRequest={setDeleteId} />
+                  ))}
             </TabsContent>
             <TabsContent value="rejected" className="space-y-4 mt-4">
-              {rejectedTransfers.length === 0 ? (
-                <Card>
-                  <CardContent className="py-12 text-center">
-                    <XCircle className="w-12 h-12 mx-auto text-muted-foreground/50 mb-4" />
-                    <p className="text-muted-foreground text-sm">لا توجد تحويلات مرفوضة</p>
-                  </CardContent>
-                </Card>
-              ) : (
-                rejectedTransfers.map(t => <TransferCard key={t.id} transfer={t} companies={companies || []} />)
-              )}
+              {rejectedTransfers.length === 0
+                ? renderEmpty(<XCircle className="w-full h-full" />, "لا توجد تحويلات مرفوضة")
+                : rejectedTransfers.map(t => (
+                    <TransferCard key={t.id} transfer={t} companies={allCompanies} onDeleteRequest={setDeleteId} />
+                  ))}
             </TabsContent>
           </>
         )}
       </Tabs>
+
+      {/* Delete confirmation dialog */}
+      <AlertDialog open={!!deleteId} onOpenChange={open => !open && setDeleteId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>حذف التحويل</AlertDialogTitle>
+            <AlertDialogDescription>
+              هل أنت متأكد من حذف هذا التحويل؟ لا يمكن التراجع عن هذا الإجراء.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter className="flex gap-2">
+            <AlertDialogCancel>إلغاء</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={() => deleteId && deleteMutation.mutate(deleteId)}
+              data-testid="button-confirm-delete-transfer"
+            >
+              {deleteMutation.isPending ? "جاري الحذف..." : "حذف"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
