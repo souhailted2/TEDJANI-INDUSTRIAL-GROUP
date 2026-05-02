@@ -286,14 +286,7 @@ export async function registerRoutes(
 
   app.get("/api/transfers", isCompanyAuth, requirePermission("transfers"), async (req: any, res) => {
     const allTransfers = await storage.getTransfers();
-    if (req.session.isParent) {
-      return res.json(allTransfers);
-    }
-    const companyId = req.session.companyId;
-    const filtered = allTransfers.filter(
-      t => t.fromCompanyId === companyId || t.toCompanyId === companyId
-    );
-    res.json(filtered);
+    res.json(allTransfers);
   });
 
   app.post("/api/transfers", isCompanyAuth, requirePermission("transfers"), async (req: any, res) => {

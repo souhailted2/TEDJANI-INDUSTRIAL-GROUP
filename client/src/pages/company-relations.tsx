@@ -45,6 +45,8 @@ import {
   TrendingUp,
   TrendingDown,
   Minus,
+  Users,
+  User,
 } from "lucide-react";
 import type { Company, Transfer } from "@shared/schema";
 
@@ -134,14 +136,14 @@ function NetBadges({
 }
 
 function PairDetail({
-  currentCompanyId,
-  otherCompany,
+  companyA,
+  companyB,
   transfers,
   companies,
   onBack,
 }: {
-  currentCompanyId: string;
-  otherCompany: SafeCompany;
+  companyA: SafeCompany;
+  companyB: SafeCompany;
   transfers: Transfer[];
   companies: SafeCompany[];
   onBack: () => void;
@@ -156,17 +158,14 @@ function PairDetail({
   const [addDate, setAddDate] = useState(new Date().toISOString().split("T")[0]);
   const [addDirection, setAddDirection] = useState<"a_to_b" | "b_to_a">("a_to_b");
 
-  const currentCompany = companies.find(c => c.id === currentCompanyId);
-
-  // All transfers between this pair (both directions)
   const pairTransfers = transfers
     .filter(t =>
-      (t.fromCompanyId === currentCompanyId && t.toCompanyId === otherCompany.id) ||
-      (t.fromCompanyId === otherCompany.id && t.toCompanyId === currentCompanyId)
+      (t.fromCompanyId === companyA.id && t.toCompanyId === companyB.id) ||
+      (t.fromCompanyId === companyB.id && t.toCompanyId === companyA.id)
     )
     .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 
-  const net = computePairNet(currentCompanyId, otherCompany.id, transfers);
+  const net = computePairNet(companyA.id, companyB.id, transfers);
 
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => {
@@ -207,17 +206,16 @@ function PairDetail({
       toast({ title: "يرجى إدخال المبلغ", variant: "destructive" });
       return;
     }
-    const fromId = addDirection === "a_to_b" ? currentCompanyId : otherCompany.id;
-    const toId = addDirection === "a_to_b" ? otherCompany.id : currentCompanyId;
+    const fromId = addDirection === "a_to_b" ? companyA.id : companyB.id;
+    const toId = addDirection === "a_to_b" ? companyB.id : companyA.id;
     addMutation.mutate({ fromCompanyId: fromId, toCompanyId: toId, amount: addAmount, currency: addCurrency, note: addNote || null, date: addDate });
   };
 
-  // Totals by currency for summary card
   const totalsByDirection: Record<string, { atob: number; btoa: number }> = {};
   for (const t of pairTransfers) {
     const c = t.currency || "DZD";
     if (!totalsByDirection[c]) totalsByDirection[c] = { atob: 0, btoa: 0 };
-    if (t.fromCompanyId === currentCompanyId) totalsByDirection[c].atob += Number(t.amount);
+    if (t.fromCompanyId === companyA.id) totalsByDirection[c].atob += Number(t.amount);
     else totalsByDirection[c].btoa += Number(t.amount);
   }
 
@@ -229,9 +227,9 @@ function PairDetail({
           العودة
         </Button>
         <div className="flex items-center gap-2 font-semibold">
-          <span>{currentCompany?.name}</span>
+          <span>{companyA.name}</span>
           <ArrowRight className="w-4 h-4 text-muted-foreground" />
-          <span>{otherCompany.name}</span>
+          <span>{companyB.name}</span>
         </div>
       </div>
 
@@ -253,11 +251,11 @@ function PairDetail({
             return (
               <div key={currency} className="rounded-md border p-3 space-y-2 text-sm">
                 <div className="flex items-center justify-between">
-                  <span className="text-muted-foreground">من {currentCompany?.name} ← {otherCompany.name}:</span>
+                  <span className="text-muted-foreground">من {companyA.name} إلى {companyB.name}:</span>
                   <span className="font-semibold" dir="ltr">{formatAmount(atob)} {sym}</span>
                 </div>
                 <div className="flex items-center justify-between">
-                  <span className="text-muted-foreground">من {otherCompany.name} → {currentCompany?.name}:</span>
+                  <span className="text-muted-foreground">من {companyB.name} إلى {companyA.name}:</span>
                   <span className="font-semibold" dir="ltr">{formatAmount(btoa)} {sym}</span>
                 </div>
                 <div className="border-t pt-2 flex items-center justify-between font-bold">
@@ -269,8 +267,8 @@ function PairDetail({
                 {Math.abs(netVal) > 0.001 && (
                   <p className="text-xs text-muted-foreground">
                     {netVal > 0
-                      ? `${otherCompany.name} مدينة لـ ${currentCompany?.name}`
-                      : `${currentCompany?.name} مدينة لـ ${otherCompany.name}`}
+                      ? `${companyB.name} مدينة لـ ${companyA.name}`
+                      : `${companyA.name} مدينة لـ ${companyB.name}`}
                   </p>
                 )}
               </div>
@@ -342,7 +340,7 @@ function PairDetail({
       <Dialog open={addDialogOpen} onOpenChange={setAddDialogOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>تحويل جديد بين {currentCompany?.name} و {otherCompany.name}</DialogTitle>
+            <DialogTitle>تحويل جديد بين {companyA.name} و {companyB.name}</DialogTitle>
           </DialogHeader>
           <div className="space-y-4 mt-4">
             <div className="space-y-2">
@@ -352,8 +350,8 @@ function PairDetail({
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="a_to_b">من {currentCompany?.name} → {otherCompany.name}</SelectItem>
-                  <SelectItem value="b_to_a">من {otherCompany.name} → {currentCompany?.name}</SelectItem>
+                  <SelectItem value="a_to_b">من {companyA.name} → {companyB.name}</SelectItem>
+                  <SelectItem value="b_to_a">من {companyB.name} → {companyA.name}</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -419,7 +417,10 @@ export default function CompanyRelations() {
 
   const { toast } = useToast();
   const { isParent } = useAuth();
-  const [selectedOther, setSelectedOther] = useState<SafeCompany | null>(null);
+
+  const [viewMode, setViewMode] = useState<"mine" | "all">("mine");
+  const [selectedPair, setSelectedPair] = useState<{ a: SafeCompany; b: SafeCompany } | null>(null);
+
   const [addDialogOpen, setAddDialogOpen] = useState(false);
   const [addFromId, setAddFromId] = useState("");
   const [addToId, setAddToId] = useState("");
@@ -432,7 +433,6 @@ export default function CompanyRelations() {
     queryKey: ["/api/companies"],
   });
 
-  // Read ONLY from /api/transfers — single source of truth
   const { data: transfers, isLoading: transfersLoading } = useQuery<Transfer[]>({
     queryKey: ["/api/transfers"],
   });
@@ -474,17 +474,29 @@ export default function CompanyRelations() {
   const allCompanies = companies || [];
   const allTransfers = transfers || [];
   const currentCompany = allCompanies.find(c => c.id === companyId);
-  const otherCompanies = allCompanies.filter(c => c.id !== companyId);
 
-  if (selectedOther) {
+  // Generate all unique pairs (A, B) where A.id < B.id to avoid duplicates
+  const allPairs: { a: SafeCompany; b: SafeCompany }[] = [];
+  for (let i = 0; i < allCompanies.length; i++) {
+    for (let j = i + 1; j < allCompanies.length; j++) {
+      allPairs.push({ a: allCompanies[i], b: allCompanies[j] });
+    }
+  }
+
+  // Filter pairs based on view mode
+  const displayedPairs = viewMode === "mine"
+    ? allPairs.filter(p => p.a.id === companyId || p.b.id === companyId)
+    : allPairs;
+
+  if (selectedPair) {
     return (
       <div className="p-6 max-w-3xl mx-auto">
         <PairDetail
-          currentCompanyId={companyId}
-          otherCompany={selectedOther}
+          companyA={selectedPair.a}
+          companyB={selectedPair.b}
           transfers={allTransfers}
           companies={allCompanies}
-          onBack={() => setSelectedOther(null)}
+          onBack={() => setSelectedPair(null)}
         />
       </div>
     );
@@ -502,51 +514,70 @@ export default function CompanyRelations() {
           </Link>
           <div>
             <h1 className="text-xl font-bold" data-testid="text-relations-title">
-              {currentCompany ? `العلاقات المالية: ${currentCompany.name}` : "العلاقات المالية"}
+              العلاقات المالية
             </h1>
-            <p className="text-muted-foreground text-xs mt-0.5">التحويلات المسجلة مع باقي الشركات</p>
+            <p className="text-muted-foreground text-xs mt-0.5">التحويلات المسجلة بين الشركات</p>
           </div>
         </div>
         {isParent && (
-          <Button size="sm" onClick={() => { setAddFromId(companyId); setAddToId(""); setAddDialogOpen(true); }} data-testid="button-new-transfer-overview">
+          <Button size="sm" onClick={() => { setAddFromId(""); setAddToId(""); setAddDialogOpen(true); }} data-testid="button-new-transfer-overview">
             <Plus className="w-4 h-4 ml-1" />
             تحويل جديد
           </Button>
         )}
       </div>
 
+      {/* View mode toggle */}
+      <div className="flex items-center gap-2 bg-muted/40 p-1 rounded-lg w-fit" data-testid="toggle-view-mode">
+        <Button
+          size="sm"
+          variant={viewMode === "mine" ? "default" : "ghost"}
+          className="gap-1.5 h-8"
+          onClick={() => setViewMode("mine")}
+          data-testid="button-view-mine"
+        >
+          <User className="w-3.5 h-3.5" />
+          علاقاتي فقط
+        </Button>
+        <Button
+          size="sm"
+          variant={viewMode === "all" ? "default" : "ghost"}
+          className="gap-1.5 h-8"
+          onClick={() => setViewMode("all")}
+          data-testid="button-view-all"
+        >
+          <Users className="w-3.5 h-3.5" />
+          كل العلاقات
+        </Button>
+      </div>
+
       {loading ? (
         <div className="space-y-3">
           {[1, 2, 3].map(i => <Card key={i}><CardContent className="p-5"><Skeleton className="h-16 w-full" /></CardContent></Card>)}
         </div>
-      ) : !currentCompany ? (
-        <Card>
-          <CardContent className="py-12 text-center">
-            <Building2 className="w-12 h-12 mx-auto text-muted-foreground/40 mb-4" />
-            <p className="text-muted-foreground">الشركة غير موجودة</p>
-          </CardContent>
-        </Card>
-      ) : otherCompanies.length === 0 ? (
+      ) : displayedPairs.length === 0 ? (
         <Card>
           <CardContent className="py-12 text-center">
             <Scale className="w-12 h-12 mx-auto text-muted-foreground/40 mb-4" />
-            <p className="text-muted-foreground text-sm">لا توجد شركات أخرى</p>
+            <p className="text-muted-foreground text-sm">
+              {viewMode === "mine" ? "لا توجد شركات أخرى لعرض علاقاتها" : "لا توجد شركات مسجلة"}
+            </p>
           </CardContent>
         </Card>
       ) : (
         <div className="space-y-3">
-          {otherCompanies.map(other => {
-            const net = computePairNet(companyId, other.id, allTransfers);
+          {displayedPairs.map(({ a, b }) => {
+            const net = computePairNet(a.id, b.id, allTransfers);
             const txCount = allTransfers.filter(t =>
-              (t.fromCompanyId === companyId && t.toCompanyId === other.id) ||
-              (t.fromCompanyId === other.id && t.toCompanyId === companyId)
+              (t.fromCompanyId === a.id && t.toCompanyId === b.id) ||
+              (t.fromCompanyId === b.id && t.toCompanyId === a.id)
             ).length;
             return (
               <Card
-                key={other.id}
+                key={`${a.id}-${b.id}`}
                 className="cursor-pointer hover:border-primary/40 transition-colors"
-                onClick={() => setSelectedOther(other)}
-                data-testid={`card-relation-${other.id}`}
+                onClick={() => setSelectedPair({ a, b })}
+                data-testid={`card-relation-${a.id}-${b.id}`}
               >
                 <CardContent className="p-4">
                   <div className="flex items-center justify-between gap-4 flex-wrap">
@@ -555,15 +586,20 @@ export default function CompanyRelations() {
                         <Building2 className="w-4 h-4 text-primary" />
                       </div>
                       <div>
-                        <p className="font-semibold text-sm">{other.name}</p>
+                        <div className="flex items-center gap-1.5 font-semibold text-sm">
+                          <span>{a.name}</span>
+                          <ArrowRight className="w-3 h-3 text-muted-foreground" />
+                          <span>{b.name}</span>
+                        </div>
                         <div className="flex items-center gap-2 mt-0.5">
                           <Badge variant="outline" className="text-[11px]">{txCount} معاملة</Badge>
-                          {other.isParent && <Badge variant="secondary" className="text-[11px]">الشركة الأم</Badge>}
+                          {a.isParent && <Badge variant="secondary" className="text-[11px]">{a.name} (الأم)</Badge>}
+                          {b.isParent && <Badge variant="secondary" className="text-[11px]">{b.name} (الأم)</Badge>}
                         </div>
                       </div>
                     </div>
                     <div className="flex flex-col items-end gap-1">
-                      <NetBadges net={net} companyAName={currentCompany.name} companyBName={other.name} />
+                      <NetBadges net={net} companyAName={a.name} companyBName={b.name} />
                     </div>
                   </div>
                 </CardContent>
