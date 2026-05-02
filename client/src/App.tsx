@@ -28,11 +28,13 @@ import UsersPage from "@/pages/users";
 import Landing from "@/pages/landing";
 import OperatorDashboard from "@/pages/operator-dashboard";
 import IntercompanyPage from "@/pages/intercompany";
+import CompanyRelations from "@/pages/company-relations";
 
 function Router() {
   return (
     <Switch>
       <Route path="/" component={Dashboard} />
+      <Route path="/companies/:id/relations" component={CompanyRelations} />
       <Route path="/companies" component={Companies} />
       <Route path="/transfers" component={Transfers} />
       <Route path="/expenses" component={Expenses} />
