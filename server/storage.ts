@@ -46,6 +46,8 @@ export interface IStorage {
   getTransfers(): Promise<Transfer[]>;
   getTransfer(id: string): Promise<Transfer | undefined>;
   createTransfer(transfer: InsertTransfer): Promise<Transfer>;
+  createApprovedTransfer(data: { fromCompanyId: string; toCompanyId: string; amount: string; currency?: string; note?: string | null; date?: string | null }): Promise<Transfer>;
+  deleteTransfer(id: string): Promise<void>;
   updateTransferStatus(id: string, status: string): Promise<Transfer | undefined>;
 
   getExpenseCategories(): Promise<ExpenseCategory[]>;
@@ -305,6 +307,23 @@ export class DatabaseStorage implements IStorage {
   async createTransfer(transfer: InsertTransfer): Promise<Transfer> {
     const [created] = await db.insert(transfers).values(transfer).returning();
     return created;
+  }
+
+  async createApprovedTransfer(data: { fromCompanyId: string; toCompanyId: string; amount: string; currency?: string; note?: string | null; date?: string | null }): Promise<Transfer> {
+    const [created] = await db.insert(transfers).values({
+      fromCompanyId: data.fromCompanyId,
+      toCompanyId: data.toCompanyId,
+      amount: data.amount,
+      currency: data.currency || "DZD",
+      status: "approved",
+      note: data.note ?? null,
+      date: data.date ?? null,
+    }).returning();
+    return created;
+  }
+
+  async deleteTransfer(id: string): Promise<void> {
+    await db.delete(transfers).where(eq(transfers.id, id));
   }
 
   async updateTransferStatus(id: string, status: string): Promise<Transfer | undefined> {

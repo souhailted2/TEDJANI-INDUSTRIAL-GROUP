@@ -46,7 +46,7 @@ import {
   TrendingDown,
   Minus,
 } from "lucide-react";
-import type { Company, IntercompanyTransfer } from "@shared/schema";
+import type { Company, Transfer } from "@shared/schema";
 
 type SafeCompany = Omit<Company, "password">;
 
@@ -64,10 +64,11 @@ function getCurrencySymbol(currency: string) {
   }
 }
 
+// Balance = SUM(A→B) - SUM(B→A), grouped by currency
 function computePairNet(
   companyAId: string,
   companyBId: string,
-  transfers: IntercompanyTransfer[]
+  transfers: Transfer[]
 ): Record<string, number> {
   const net: Record<string, number> = {};
   for (const t of transfers) {
@@ -141,7 +142,7 @@ function PairDetail({
 }: {
   currentCompanyId: string;
   otherCompany: SafeCompany;
-  transfers: IntercompanyTransfer[];
+  transfers: Transfer[];
   companies: SafeCompany[];
   onBack: () => void;
 }) {
@@ -157,6 +158,7 @@ function PairDetail({
 
   const currentCompany = companies.find(c => c.id === currentCompanyId);
 
+  // All transfers between this pair (both directions)
   const pairTransfers = transfers
     .filter(t =>
       (t.fromCompanyId === currentCompanyId && t.toCompanyId === otherCompany.id) ||
@@ -168,11 +170,11 @@ function PairDetail({
 
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => {
-      const res = await apiRequest("DELETE", `/api/intercompany-transfers/${id}`);
+      const res = await apiRequest("DELETE", `/api/transfers/${id}`);
       return res.json();
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/all-transfers"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/transfers"] });
       setDeleteId(null);
       toast({ title: "تم حذف التحويل بنجاح" });
     },
@@ -183,11 +185,11 @@ function PairDetail({
 
   const addMutation = useMutation({
     mutationFn: async (data: any) => {
-      const res = await apiRequest("POST", "/api/intercompany-transfers", data);
+      const res = await apiRequest("POST", "/api/transfers/direct", data);
       return res.json();
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/all-transfers"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/transfers"] });
       setAddDialogOpen(false);
       setAddAmount("");
       setAddNote("");
@@ -207,9 +209,10 @@ function PairDetail({
     }
     const fromId = addDirection === "a_to_b" ? currentCompanyId : otherCompany.id;
     const toId = addDirection === "a_to_b" ? otherCompany.id : currentCompanyId;
-    addMutation.mutate({ fromCompanyId: fromId, toCompanyId: toId, amount: addAmount, currency: addCurrency, note: addNote || undefined, date: addDate });
+    addMutation.mutate({ fromCompanyId: fromId, toCompanyId: toId, amount: addAmount, currency: addCurrency, note: addNote || null, date: addDate });
   };
 
+  // Totals by currency for summary card
   const totalsByDirection: Record<string, { atob: number; btoa: number }> = {};
   for (const t of pairTransfers) {
     const c = t.currency || "DZD";
@@ -250,7 +253,7 @@ function PairDetail({
             return (
               <div key={currency} className="rounded-md border p-3 space-y-2 text-sm">
                 <div className="flex items-center justify-between">
-                  <span className="text-muted-foreground">من {currentCompany?.name} → {otherCompany.name}:</span>
+                  <span className="text-muted-foreground">من {currentCompany?.name} ← {otherCompany.name}:</span>
                   <span className="font-semibold" dir="ltr">{formatAmount(atob)} {sym}</span>
                 </div>
                 <div className="flex items-center justify-between">
@@ -305,8 +308,11 @@ function PairDetail({
                         <span className="font-medium">{to?.name}</span>
                       </div>
                       <div className="flex items-center gap-3 flex-wrap">
-                        <span className="text-base font-bold" dir="ltr">{formatAmount(t.amount)} {sym}</span>
+                        <span className="text-base font-bold" dir="ltr">{formatAmount(Number(t.amount))} {sym}</span>
                         <Badge variant="outline" className="text-xs">{t.currency || "DZD"}</Badge>
+                        {t.status === "pending" && (
+                          <Badge variant="secondary" className="text-xs">قيد الانتظار</Badge>
+                        )}
                         <span className="text-xs text-muted-foreground">{t.date || formatDateSimple(t.createdAt)}</span>
                       </div>
                       {t.note && (
@@ -426,17 +432,18 @@ export default function CompanyRelations() {
     queryKey: ["/api/companies"],
   });
 
-  const { data: transfers, isLoading: transfersLoading } = useQuery<IntercompanyTransfer[]>({
-    queryKey: ["/api/all-transfers"],
+  // Read ONLY from /api/transfers — single source of truth
+  const { data: transfers, isLoading: transfersLoading } = useQuery<Transfer[]>({
+    queryKey: ["/api/transfers"],
   });
 
   const addMutation = useMutation({
     mutationFn: async (data: any) => {
-      const res = await apiRequest("POST", "/api/intercompany-transfers", data);
+      const res = await apiRequest("POST", "/api/transfers/direct", data);
       return res.json();
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/all-transfers"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/transfers"] });
       setAddDialogOpen(false);
       setAddFromId("");
       setAddToId("");
@@ -460,7 +467,7 @@ export default function CompanyRelations() {
       toast({ title: "لا يمكن التحويل لنفس الشركة", variant: "destructive" });
       return;
     }
-    addMutation.mutate({ fromCompanyId: addFromId, toCompanyId: addToId, amount: addAmount, currency: addCurrency, note: addNote || undefined, date: addDate });
+    addMutation.mutate({ fromCompanyId: addFromId, toCompanyId: addToId, amount: addAmount, currency: addCurrency, note: addNote || null, date: addDate });
   };
 
   const loading = companiesLoading || transfersLoading;

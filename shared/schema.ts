@@ -30,6 +30,7 @@ export const transfers = pgTable("transfers", {
   fromCompanyId: varchar("from_company_id").notNull().references(() => companies.id),
   toCompanyId: varchar("to_company_id").notNull().references(() => companies.id),
   amount: numeric("amount", { precision: 15, scale: 2 }).notNull(),
+  currency: text("currency").notNull().default("DZD"),
   status: text("status").notNull().default("pending"),
   note: text("note"),
   date: text("date"),

@@ -52,7 +52,7 @@ import {
   Minus,
   ChevronLeft,
 } from "lucide-react";
-import type { Company, IntercompanyTransfer } from "@shared/schema";
+import type { Company, Transfer } from "@shared/schema";
 
 type SafeCompany = Omit<Company, "password">;
 
@@ -72,7 +72,7 @@ function getCurrencySymbol(currency: string) {
 
 function computeCompanyNetBalance(
   companyId: string,
-  transfers: IntercompanyTransfer[]
+  transfers: Transfer[]
 ): Record<string, number> {
   const bal: Record<string, number> = {};
   for (const t of transfers) {
@@ -156,8 +156,8 @@ export default function Companies() {
     queryKey: ["/api/companies"],
   });
 
-  const { data: icTransfers } = useQuery<IntercompanyTransfer[]>({
-    queryKey: ["/api/all-transfers"],
+  const { data: icTransfers } = useQuery<Transfer[]>({
+    queryKey: ["/api/transfers"],
   });
 
   const createMutation = useMutation({
@@ -203,7 +203,7 @@ export default function Companies() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/companies"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/intercompany-transfers"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/transfers"] });
       setDeleteDialogOpen(false);
       setDeletingCompany(null);
       toast({ title: "تم حذف الشركة بنجاح" });
@@ -222,11 +222,11 @@ export default function Companies() {
       note?: string;
       date?: string;
     }) => {
-      const res = await apiRequest("POST", "/api/intercompany-transfers", data);
+      const res = await apiRequest("POST", "/api/transfers/direct", data);
       return res.json();
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/all-transfers"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/transfers"] });
       setTransferDialogOpen(false);
       setTransferTarget(null);
       setTransferAmount("");

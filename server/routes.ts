@@ -321,6 +321,38 @@ export async function registerRoutes(
     res.status(201).json(transfer);
   });
 
+  // Direct transfer creation (approved immediately, no balance field modification)
+  app.post("/api/transfers/direct", isCompanyAuth, requirePermission("transfers"), async (req: any, res) => {
+    if (!req.session.isParent) {
+      return res.status(403).json({ message: "فقط الشركة الأم يمكنها إنشاء تحويلات مباشرة" });
+    }
+    const { fromCompanyId, toCompanyId, amount, currency, note, date } = req.body;
+    if (!fromCompanyId || !toCompanyId || !amount) {
+      return res.status(400).json({ message: "بيانات غير كاملة: fromCompanyId و toCompanyId و amount مطلوبة" });
+    }
+    if (fromCompanyId === toCompanyId) {
+      return res.status(400).json({ message: "لا يمكن التحويل لنفس الشركة" });
+    }
+    const fromCompany = await storage.getCompany(fromCompanyId);
+    const toCompany = await storage.getCompany(toCompanyId);
+    if (!fromCompany || !toCompany) {
+      return res.status(400).json({ message: "الشركة غير موجودة" });
+    }
+    const transfer = await storage.createApprovedTransfer({ fromCompanyId, toCompanyId, amount: String(amount), currency: currency || "DZD", note: note || null, date: date || null });
+    res.status(201).json(transfer);
+  });
+
+  // Delete a transfer (relations page — parent only)
+  app.delete("/api/transfers/:id", isCompanyAuth, requirePermission("transfers"), async (req: any, res) => {
+    if (!req.session.isParent) {
+      return res.status(403).json({ message: "فقط الشركة الأم يمكنها حذف التحويلات" });
+    }
+    const t = await storage.getTransfer(req.params.id as string);
+    if (!t) return res.status(404).json({ message: "التحويل غير موجود" });
+    await storage.deleteTransfer(t.id);
+    res.json({ ok: true });
+  });
+
   app.patch("/api/transfers/:id/approve", isCompanyAuth, requirePermission("transfers"), async (req: any, res) => {
     const transfer = await storage.getTransfer(req.params.id as string);
     if (!transfer) return res.status(404).json({ message: "التحويل غير موجود" });
