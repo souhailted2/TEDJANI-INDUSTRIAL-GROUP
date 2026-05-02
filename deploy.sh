@@ -46,14 +46,27 @@ echo "📝 رسالة الكوميت: $COMMIT_MSG"
 echo "🖥️  السيرفر: ${SERVER_USER}@${SERVER_HOST}"
 echo ""
 
-# --- الخطوة 1: push إلى GitHub (Token مضمّن في URL مباشرة) ---
+# --- الخطوة 1: commit و push إلى GitHub ---
 echo "📤 [1/3] رفع التعديلات إلى GitHub..."
 
 git config user.email "deploy@tedjani.com" 2>/dev/null || true
 git config user.name "Replit Deploy" 2>/dev/null || true
 
-# الرفع بإمرار Token مباشرةً في URL دون تعديل إعدادات git
-git push "https://${GITHUB_TOKEN}@github.com/${REPO}.git" main
+# حفظ التعديلات غير المُودَعة إن وُجدت
+git add -A
+if git diff --cached --quiet; then
+  echo "⚠️  لا توجد تعديلات جديدة للـ commit، جارٍ الرفع فقط..."
+else
+  git commit -m "$COMMIT_MSG"
+  echo "✅ تم إنشاء الكوميت بنجاح"
+fi
+
+# الرفع باستخدام credential helper مؤقت لتجنب تسريب التوكن في قوائم العمليات
+CRED_FILE=$(mktemp)
+trap "rm -f '$CRED_FILE'" EXIT
+chmod 600 "$CRED_FILE"
+printf 'https://x-token:%s@github.com\n' "$GITHUB_TOKEN" > "$CRED_FILE"
+git -c credential.helper="store --file=$CRED_FILE" push origin main
 echo "✅ تم الرفع إلى GitHub بنجاح"
 echo ""
 
