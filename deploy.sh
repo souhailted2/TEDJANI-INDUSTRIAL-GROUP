@@ -3,29 +3,47 @@
 # =============================================
 # سكريبت النشر التلقائي - TEDJANI INDUSTRIAL GROUP
 # الاستخدام: ./deploy.sh "رسالة الكوميت"
+# المتغيرات المطلوبة كـ Replit Secrets:
+#   GITHUB_TOKEN   - توكن GitHub للرفع
+#   SERVER_PASSWORD - كلمة مرور SSH للسيرفر
 # =============================================
 
 set -e
 
-# --- التحقق من المتغيرات المطلوبة ---
-if [ -z "$GITHUB_TOKEN" ]; then
-  echo "❌ خطأ: GITHUB_TOKEN غير موجود في متغيرات البيئة"
-  exit 1
-fi
-if [ -z "$SERVER_PASSWORD" ]; then
-  echo "❌ خطأ: SERVER_PASSWORD غير موجود في متغيرات البيئة"
+# --- التحقق من توفر sshpass ---
+if ! command -v sshpass &>/dev/null; then
+  echo "❌ خطأ: sshpass غير مثبت. قم بتثبيته أولاً:"
+  echo "   Alpine/Nix:    nix-env -iA nixpkgs.sshpass"
+  echo "   Ubuntu/Debian: apt-get install -y sshpass"
   exit 1
 fi
 
+# --- إعدادات السيرفر (يمكن تجاوزها بمتغيرات بيئة) ---
 SERVER_HOST="${SERVER_HOST:-5.75.144.100}"
 SERVER_USER="${SERVER_USER:-root}"
 SERVER_DIR="/root/TEDJANI-INDUSTRIAL-GROUP"
 REPO="souhailted2/TEDJANI-INDUSTRIAL-GROUP"
 COMMIT_MSG="${1:-تحديث تلقائي}"
 
+# --- التحقق من الـ secrets المطلوبة ---
+MISSING=()
+[ -z "$GITHUB_TOKEN" ]    && MISSING+=("GITHUB_TOKEN")
+[ -z "$SERVER_PASSWORD" ] && MISSING+=("SERVER_PASSWORD")
+
+if [ ${#MISSING[@]} -gt 0 ]; then
+  echo "❌ خطأ: الـ secrets التالية مطلوبة ولم تُضبط:"
+  for v in "${MISSING[@]}"; do
+    echo "   - $v"
+  done
+  echo ""
+  echo "أضفها في: Replit → الإعدادات → Secrets"
+  exit 1
+fi
+
 echo ""
 echo "🚀 بدء عملية النشر..."
 echo "📝 رسالة الكوميت: $COMMIT_MSG"
+echo "🖥️  السيرفر: ${SERVER_USER}@${SERVER_HOST}"
 echo ""
 
 # --- الخطوة 1: commit و push إلى GitHub ---
@@ -38,10 +56,12 @@ git config user.name "Replit Deploy" 2>/dev/null || true
 git remote set-url origin "https://${GITHUB_TOKEN}@github.com/${REPO}.git"
 
 git add -A
-git diff --cached --quiet && echo "⚠️  لا توجد تعديلات جديدة للرفع" || {
+if git diff --cached --quiet; then
+  echo "⚠️  لا توجد تعديلات جديدة للرفع، جارٍ تحديث السيرفر فقط..."
+else
   git commit -m "$COMMIT_MSG"
   echo "✅ تم إنشاء الكوميت بنجاح"
-}
+fi
 
 git push origin main
 echo "✅ تم الرفع إلى GitHub بنجاح"

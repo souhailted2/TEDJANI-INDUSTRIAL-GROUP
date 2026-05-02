@@ -46,5 +46,3 @@ stack = "FULLSTACK_JS"
 [userenv]
 
 [userenv.shared]
-SERVER_HOST = "5.75.144.100"
-SERVER_USER = "root"
