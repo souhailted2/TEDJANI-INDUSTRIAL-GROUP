@@ -172,7 +172,7 @@ function PairDetail({
       return res.json();
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/intercompany-transfers"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/all-transfers"] });
       setDeleteId(null);
       toast({ title: "تم حذف التحويل بنجاح" });
     },
@@ -187,7 +187,7 @@ function PairDetail({
       return res.json();
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/intercompany-transfers"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/all-transfers"] });
       setAddDialogOpen(false);
       setAddAmount("");
       setAddNote("");
@@ -427,7 +427,7 @@ export default function CompanyRelations() {
   });
 
   const { data: transfers, isLoading: transfersLoading } = useQuery<IntercompanyTransfer[]>({
-    queryKey: ["/api/intercompany-transfers"],
+    queryKey: ["/api/all-transfers"],
   });
 
   const addMutation = useMutation({
@@ -436,7 +436,7 @@ export default function CompanyRelations() {
       return res.json();
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/intercompany-transfers"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/all-transfers"] });
       setAddDialogOpen(false);
       setAddFromId("");
       setAddToId("");

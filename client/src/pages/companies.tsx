@@ -157,7 +157,7 @@ export default function Companies() {
   });
 
   const { data: icTransfers } = useQuery<IntercompanyTransfer[]>({
-    queryKey: ["/api/intercompany-transfers"],
+    queryKey: ["/api/all-transfers"],
   });
 
   const createMutation = useMutation({
@@ -226,7 +226,7 @@ export default function Companies() {
       return res.json();
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/intercompany-transfers"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/all-transfers"] });
       setTransferDialogOpen(false);
       setTransferTarget(null);
       setTransferAmount("");

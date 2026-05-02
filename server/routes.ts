@@ -406,6 +406,47 @@ export async function registerRoutes(
     res.json({ ok: true });
   });
 
+  // Unified endpoint: merges approved old transfers + all intercompany transfers
+  app.get("/api/all-transfers", isCompanyAuth, requirePermission("transfers"), async (req: any, res) => {
+    const [oldTransfers, newTransfers] = await Promise.all([
+      storage.getTransfers(),
+      storage.getIntercompanyTransfers(),
+    ]);
+
+    const normalized = [
+      ...oldTransfers
+        .filter(t => t.status === "approved")
+        .map(t => ({
+          id: `legacy-${t.id}`,
+          fromCompanyId: t.fromCompanyId,
+          toCompanyId: t.toCompanyId,
+          amount: t.amount,
+          currency: "DZD",
+          date: t.date ?? null,
+          note: t.note ?? null,
+          createdAt: t.createdAt,
+          source: "legacy" as const,
+        })),
+      ...newTransfers.map(t => ({
+        id: t.id,
+        fromCompanyId: t.fromCompanyId,
+        toCompanyId: t.toCompanyId,
+        amount: t.amount,
+        currency: t.currency || "DZD",
+        date: t.date ?? null,
+        note: t.note ?? null,
+        createdAt: t.createdAt,
+        source: "direct" as const,
+      })),
+    ];
+
+    if (!req.session.isParent) {
+      const cid = req.session.companyId as string;
+      return res.json(normalized.filter(t => t.fromCompanyId === cid || t.toCompanyId === cid));
+    }
+    res.json(normalized);
+  });
+
   app.get("/api/expenses", isCompanyAuth, requirePermission("expenses"), async (req: any, res) => {
     if (!req.session.isParent) {
       return res.status(403).json({ message: "فقط الشركة الأم يمكنها عرض المصاريف" });
