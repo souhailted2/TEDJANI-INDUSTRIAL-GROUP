@@ -500,7 +500,7 @@ export default function Transfers() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value={ALL_VALUE}>— كل الشركات —</SelectItem>
-                  {allCompanies.map(c => (
+                  {allCompanies.filter(c => c.id !== filterB).map(c => (
                     <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
                   ))}
                 </SelectContent>
@@ -609,6 +609,7 @@ export default function Transfers() {
             <AlertDialogAction
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
               onClick={() => deleteId && deleteMutation.mutate(deleteId)}
+              disabled={deleteMutation.isPending}
               data-testid="button-confirm-delete-transfer"
             >
               {deleteMutation.isPending ? "جاري الحذف..." : "حذف"}
