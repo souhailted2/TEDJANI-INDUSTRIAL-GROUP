@@ -46,24 +46,14 @@ echo "📝 رسالة الكوميت: $COMMIT_MSG"
 echo "🖥️  السيرفر: ${SERVER_USER}@${SERVER_HOST}"
 echo ""
 
-# --- الخطوة 1: commit و push إلى GitHub ---
+# --- الخطوة 1: push إلى GitHub (Token مضمّن في URL مباشرة) ---
 echo "📤 [1/3] رفع التعديلات إلى GitHub..."
 
 git config user.email "deploy@tedjani.com" 2>/dev/null || true
 git config user.name "Replit Deploy" 2>/dev/null || true
 
-# ضبط remote URL مع التوكن
-git remote set-url origin "https://${GITHUB_TOKEN}@github.com/${REPO}.git"
-
-git add -A
-if git diff --cached --quiet; then
-  echo "⚠️  لا توجد تعديلات جديدة للرفع، جارٍ تحديث السيرفر فقط..."
-else
-  git commit -m "$COMMIT_MSG"
-  echo "✅ تم إنشاء الكوميت بنجاح"
-fi
-
-git push origin main
+# الرفع بإمرار Token مباشرةً في URL دون تعديل إعدادات git
+git push "https://${GITHUB_TOKEN}@github.com/${REPO}.git" main
 echo "✅ تم الرفع إلى GitHub بنجاح"
 echo ""
 
@@ -79,8 +69,10 @@ sshpass -p "$SERVER_PASSWORD" ssh \
     echo '📥 سحب آخر التعديلات من GitHub...'
     cd ${SERVER_DIR}
     git pull origin main
-    echo '🔨 إعادة بناء وتشغيل الحاويات...'
-    docker-compose up --build -d
+    echo '🔨 بناء الصورة الجديدة...'
+    docker compose build
+    echo '🔄 إعادة تشغيل الحاويات بالصورة الجديدة...'
+    docker compose up -d --force-recreate
     echo '✅ تم النشر على السيرفر بنجاح'
     docker ps --format 'table {{.Names}}\t{{.Status}}\t{{.Ports}}' | grep tig
   "
