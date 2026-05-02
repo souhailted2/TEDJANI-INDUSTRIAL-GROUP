@@ -4,7 +4,7 @@ import session from "express-session";
 import connectPg from "connect-pg-simple";
 import bcrypt from "bcryptjs";
 import { storage } from "./storage";
-import { insertTransferSchema, insertExpenseSchema, insertExpenseCategorySchema, insertMemberTypeSchema, insertMemberSchema, insertMemberTransferSchema, insertExternalDebtSchema, insertDebtPaymentSchema, insertTruckSchema, insertTruckExpenseSchema, insertTruckTripSchema, insertExternalFundSchema, insertProjectSchema, insertProjectTransactionSchema, insertOperatorSchema, loginSchema, registerCompanySchema, updateCompanySchema, insertWorkshopSchema, insertWorkshopExpenseCategorySchema, insertWorkshopExpenseSchema, insertMachineSchema, insertWorkerSchema, insertMachineDailyEntrySchema, insertSparePartItemSchema, insertSparePartPurchaseSchema, insertSparePartConsumptionSchema, insertRawMaterialSchema, insertRawMaterialPurchaseSchema, insertWorkerCompanySchema, insertWorkerTransactionSchema, insertWorkShiftSchema, insertAttendanceScanSchema, insertAttendanceDaySchema, insertHolidaySchema, insertWorkerWarningSchema } from "@shared/schema";
+import { insertTransferSchema, insertExpenseSchema, insertExpenseCategorySchema, insertMemberTypeSchema, insertMemberSchema, insertMemberTransferSchema, insertExternalDebtSchema, insertDebtPaymentSchema, insertTruckSchema, insertTruckExpenseSchema, insertTruckTripSchema, insertExternalFundSchema, insertProjectSchema, insertProjectTransactionSchema, insertOperatorSchema, loginSchema, registerCompanySchema, updateCompanySchema, insertWorkshopSchema, insertWorkshopExpenseCategorySchema, insertWorkshopExpenseSchema, insertMachineSchema, insertWorkerSchema, insertMachineDailyEntrySchema, insertSparePartItemSchema, insertSparePartPurchaseSchema, insertSparePartConsumptionSchema, insertRawMaterialSchema, insertRawMaterialPurchaseSchema, insertWorkerCompanySchema, insertWorkerTransactionSchema, insertWorkShiftSchema, insertAttendanceScanSchema, insertAttendanceDaySchema, insertHolidaySchema, insertWorkerWarningSchema, insertIntercompanyTransferSchema } from "@shared/schema";
 import { seedDatabase } from "./seed";
 
 function setupSession(app: Express) {
@@ -369,6 +369,41 @@ export async function registerRoutes(
 
     const updated = await storage.updateTransferStatus(transfer.id, "rejected");
     res.json(updated);
+  });
+
+  // Intercompany Accounting Routes
+  app.get("/api/intercompany-transfers", isCompanyAuth, requirePermission("transfers"), async (req: any, res) => {
+    const all = await storage.getIntercompanyTransfers();
+    if (req.session.isParent) return res.json(all);
+    const companyId = req.session.companyId;
+    const filtered = all.filter(t => t.fromCompanyId === companyId || t.toCompanyId === companyId);
+    res.json(filtered);
+  });
+
+  app.post("/api/intercompany-transfers", isCompanyAuth, requirePermission("transfers"), async (req: any, res) => {
+    if (!req.session.isParent) {
+      return res.status(403).json({ message: "فقط الشركة الأم يمكنها إنشاء تحويلات بين الشركات" });
+    }
+    const parsed = insertIntercompanyTransferSchema.safeParse(req.body);
+    if (!parsed.success) return res.status(400).json({ message: "بيانات غير صالحة" });
+
+    const fromCompany = await storage.getCompany(parsed.data.fromCompanyId);
+    const toCompany = await storage.getCompany(parsed.data.toCompanyId);
+    if (!fromCompany || !toCompany) return res.status(400).json({ message: "الشركة غير موجودة" });
+    if (fromCompany.id === toCompany.id) return res.status(400).json({ message: "لا يمكن التحويل لنفس الشركة" });
+
+    const created = await storage.createIntercompanyTransfer(parsed.data);
+    res.status(201).json(created);
+  });
+
+  app.delete("/api/intercompany-transfers/:id", isCompanyAuth, requirePermission("transfers"), async (req: any, res) => {
+    if (!req.session.isParent) {
+      return res.status(403).json({ message: "فقط الشركة الأم يمكنها حذف التحويلات" });
+    }
+    const t = await storage.getIntercompanyTransfer(req.params.id as string);
+    if (!t) return res.status(404).json({ message: "التحويل غير موجود" });
+    await storage.deleteIntercompanyTransfer(t.id);
+    res.json({ ok: true });
   });
 
   app.get("/api/expenses", isCompanyAuth, requirePermission("expenses"), async (req: any, res) => {

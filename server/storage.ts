@@ -8,6 +8,7 @@ import {
   sparePartsItems, sparePartsPurchases, sparePartsConsumption, rawMaterials, rawMaterialPurchases,
   workerCompanies, workerTransactions,
   workShifts, attendanceScans, attendanceDays, holidays, workerWarnings,
+  intercompanyTransfers,
   type FactorySettings,
   type Company, type Transfer, type InsertTransfer, type Expense, type InsertExpense,
   type ExpenseCategory, type InsertExpenseCategory, type MemberType, type InsertMemberType,
@@ -29,6 +30,7 @@ import {
   type WorkShift, type InsertWorkShift, type AttendanceScan, type InsertAttendanceScan,
   type AttendanceDay, type InsertAttendanceDay, type Holiday, type InsertHoliday,
   type WorkerWarning, type InsertWorkerWarning,
+  type IntercompanyTransfer, type InsertIntercompanyTransfer,
 } from "@shared/schema";
 
 export interface IStorage {
@@ -229,6 +231,12 @@ export interface IStorage {
   createAppUser(user: InsertAppUser): Promise<AppUser>;
   updateAppUser(id: string, data: Partial<InsertAppUser>): Promise<AppUser | undefined>;
   deleteAppUser(id: string): Promise<void>;
+
+  getIntercompanyTransfers(): Promise<IntercompanyTransfer[]>;
+  getIntercompanyTransfersByPair(companyAId: string, companyBId: string): Promise<IntercompanyTransfer[]>;
+  getIntercompanyTransfer(id: string): Promise<IntercompanyTransfer | undefined>;
+  createIntercompanyTransfer(data: InsertIntercompanyTransfer): Promise<IntercompanyTransfer>;
+  deleteIntercompanyTransfer(id: string): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -1038,6 +1046,33 @@ export class DatabaseStorage implements IStorage {
 
   async deleteWorkerWarning(id: string): Promise<void> {
     await db.delete(workerWarnings).where(eq(workerWarnings.id, id));
+  }
+
+  async getIntercompanyTransfers(): Promise<IntercompanyTransfer[]> {
+    return db.select().from(intercompanyTransfers);
+  }
+
+  async getIntercompanyTransfersByPair(companyAId: string, companyBId: string): Promise<IntercompanyTransfer[]> {
+    return db.select().from(intercompanyTransfers).where(
+      or(
+        and(eq(intercompanyTransfers.fromCompanyId, companyAId), eq(intercompanyTransfers.toCompanyId, companyBId)),
+        and(eq(intercompanyTransfers.fromCompanyId, companyBId), eq(intercompanyTransfers.toCompanyId, companyAId))
+      )
+    );
+  }
+
+  async getIntercompanyTransfer(id: string): Promise<IntercompanyTransfer | undefined> {
+    const [t] = await db.select().from(intercompanyTransfers).where(eq(intercompanyTransfers.id, id));
+    return t;
+  }
+
+  async createIntercompanyTransfer(data: InsertIntercompanyTransfer): Promise<IntercompanyTransfer> {
+    const [created] = await db.insert(intercompanyTransfers).values(data).returning();
+    return created;
+  }
+
+  async deleteIntercompanyTransfer(id: string): Promise<void> {
+    await db.delete(intercompanyTransfers).where(eq(intercompanyTransfers.id, id));
   }
 }
 

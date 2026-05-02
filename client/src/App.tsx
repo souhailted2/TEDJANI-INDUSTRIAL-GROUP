@@ -27,6 +27,7 @@ import Attendance from "@/pages/attendance";
 import UsersPage from "@/pages/users";
 import Landing from "@/pages/landing";
 import OperatorDashboard from "@/pages/operator-dashboard";
+import IntercompanyPage from "@/pages/intercompany";
 
 function Router() {
   return (
@@ -45,6 +46,7 @@ function Router() {
       <Route path="/workers-management" component={WorkersManagement} />
       <Route path="/attendance" component={Attendance} />
       <Route path="/users" component={UsersPage} />
+      <Route path="/intercompany" component={IntercompanyPage} />
       <Route component={NotFound} />
     </Switch>
   );

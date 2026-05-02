@@ -1,5 +1,5 @@
 import { useLocation, Link } from "wouter";
-import { Building2, ArrowLeftRight, LayoutDashboard, ReceiptText, Users, Landmark, FileText, Truck, Banknote, FolderKanban, Factory, UserCog, HardHat, Clock, Wallet, Ship, Settings } from "lucide-react";
+import { Building2, ArrowLeftRight, LayoutDashboard, ReceiptText, Users, Landmark, FileText, Truck, Banknote, FolderKanban, Factory, UserCog, HardHat, Clock, Wallet, Ship, Settings, Scale } from "lucide-react";
 import {
   Sidebar,
   SidebarContent,
@@ -18,6 +18,7 @@ const financialItems = [
   { title: "لوحة التحكم", url: "/", icon: LayoutDashboard, parentOnly: false, permission: null },
   { title: "الشركات", url: "/companies", icon: Building2, parentOnly: false, permission: "companies" },
   { title: "التحويلات", url: "/transfers", icon: ArrowLeftRight, parentOnly: false, permission: "transfers" },
+  { title: "العلاقات المالية", url: "/intercompany", icon: Scale, parentOnly: true, permission: "transfers" },
   { title: "المصاريف", url: "/expenses", icon: ReceiptText, parentOnly: true, permission: "expenses" },
   { title: "الأعضاء", url: "/members", icon: Users, parentOnly: true, permission: "members" },
   { title: "الديون الخارجية", url: "/external-debts", icon: Landmark, parentOnly: true, permission: "external_debts" },

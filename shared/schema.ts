@@ -393,6 +393,21 @@ export const insertAttendanceDaySchema = createInsertSchema(attendanceDays).omit
 export const insertHolidaySchema = createInsertSchema(holidays).omit({ id: true, createdAt: true });
 export const insertWorkerWarningSchema = createInsertSchema(workerWarnings).omit({ id: true, createdAt: true });
 
+export const intercompanyTransfers = pgTable("intercompany_transfers", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  fromCompanyId: varchar("from_company_id").notNull().references(() => companies.id),
+  toCompanyId: varchar("to_company_id").notNull().references(() => companies.id),
+  amount: numeric("amount", { precision: 15, scale: 2 }).notNull(),
+  currency: text("currency").notNull().default("DZD"),
+  date: text("date"),
+  note: text("note"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export const insertIntercompanyTransferSchema = createInsertSchema(intercompanyTransfers).omit({ id: true, createdAt: true });
+export type IntercompanyTransfer = typeof intercompanyTransfers.$inferSelect;
+export type InsertIntercompanyTransfer = z.infer<typeof insertIntercompanyTransferSchema>;
+
 export const loginSchema = z.object({
   username: z.string().min(1),
   password: z.string().min(1),
