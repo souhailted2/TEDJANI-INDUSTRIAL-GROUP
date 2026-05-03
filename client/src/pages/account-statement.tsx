@@ -4,6 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Input } from "@/components/ui/input";
 import {
   Select,
   SelectContent,
@@ -13,7 +14,7 @@ import {
 } from "@/components/ui/select";
 import { useAuth } from "@/hooks/use-auth";
 import { formatAmount, formatDateSimple } from "@/lib/format";
-import { FileText, Printer, Building2, ArrowDown, ArrowUp, Wallet } from "lucide-react";
+import { FileText, Printer, Building2, ArrowDown, ArrowUp, Wallet, RotateCcw, Filter } from "lucide-react";
 import type { Company, Transfer, Expense, MemberTransfer, Member, ExternalDebt, DebtPayment, TruckExpense, Truck, TruckTrip, ExternalFund, Project, ProjectTransaction } from "@shared/schema";
 
 type SafeCompany = Omit<Company, "password">;
@@ -193,15 +194,23 @@ function CompanyStatement({ company, transfers, allCompanies }: {
   const { hasPermission, user } = useAuth();
   const canViewTotals = user?.role !== "app_user" || hasPermission("view_totals");
   const printRef = useRef<HTMLDivElement>(null);
+  const [filterDate, setFilterDate] = useState("");
 
-  const companyTransfers = transfers
+  const allCompanyTransfers = transfers
     .filter(t => t.status === "approved" && (t.fromCompanyId === company.id || t.toCompanyId === company.id))
     .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+
+  const filteredTransfers = filterDate
+    ? allCompanyTransfers.filter(t => {
+        const raw = t.date ? t.date : new Date(t.createdAt).toISOString().slice(0, 10);
+        return raw === filterDate;
+      })
+    : allCompanyTransfers;
 
   const rows: StatementRow[] = [];
   let runningBalance = 0;
 
-  for (const t of companyTransfers) {
+  for (const t of filteredTransfers) {
     const amount = Number(t.amount);
     const isSender = t.fromCompanyId === company.id;
     const otherCompany = allCompanies.find(c => c.id === (isSender ? t.toCompanyId : t.fromCompanyId));
@@ -217,6 +226,7 @@ function CompanyStatement({ company, transfers, allCompanies }: {
 
   const totalDebit = rows.reduce((sum, r) => sum + r.debit, 0);
   const totalCredit = rows.reduce((sum, r) => sum + r.credit, 0);
+  const hasFilters = !!filterDate;
 
   return (
     <div className="space-y-4">
@@ -235,6 +245,34 @@ function CompanyStatement({ company, transfers, allCompanies }: {
         </Button>
       </div>
 
+      <Card className="border-dashed">
+        <CardContent className="p-4">
+          <div className="flex items-center gap-3 flex-wrap">
+            <Filter className="w-4 h-4 text-muted-foreground shrink-0" />
+            <div className="flex items-center gap-2">
+              <label className="text-sm font-medium whitespace-nowrap">فلتر التاريخ:</label>
+              <Input
+                type="date"
+                value={filterDate}
+                onChange={e => setFilterDate(e.target.value)}
+                className="w-44"
+                data-testid="input-filter-date-company"
+              />
+            </div>
+            {hasFilters && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setFilterDate("")}
+                data-testid="button-reset-filters-company"
+              >
+                <RotateCcw className="w-3 h-3 ml-1" />إعادة تعيين
+              </Button>
+            )}
+          </div>
+        </CardContent>
+      </Card>
+
       {canViewTotals && (
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           <Card><CardContent className="p-4 text-center">
@@ -242,11 +280,11 @@ function CompanyStatement({ company, transfers, allCompanies }: {
             <p className={`text-xl font-bold ${Number(company.balance) >= 0 ? "text-green-600" : "text-destructive"}`} data-testid="text-current-balance">{formatAmount(company.balance)} د.ج</p>
           </CardContent></Card>
           <Card><CardContent className="p-4 text-center">
-            <p className="text-xs text-muted-foreground mb-1">إجمالي الوارد</p>
+            <p className="text-xs text-muted-foreground mb-1">{hasFilters ? "إجمالي الوارد (مفلتر)" : "إجمالي الوارد"}</p>
             <p className="text-xl font-bold text-green-600" data-testid="text-total-credit">{formatAmount(totalCredit)} د.ج</p>
           </CardContent></Card>
           <Card><CardContent className="p-4 text-center">
-            <p className="text-xs text-muted-foreground mb-1">إجمالي الصادر</p>
+            <p className="text-xs text-muted-foreground mb-1">{hasFilters ? "إجمالي الصادر (مفلتر)" : "إجمالي الصادر"}</p>
             <p className="text-xl font-bold text-destructive" data-testid="text-total-debit">{formatAmount(totalDebit)} د.ج</p>
           </CardContent></Card>
         </div>
@@ -270,6 +308,7 @@ function CompanyStatement({ company, transfers, allCompanies }: {
           <CardTitle className="text-base flex items-center gap-2">
             <FileText className="w-4 h-4" />سجل العمليات
             <Badge variant="secondary" className="text-xs">{rows.length} عملية</Badge>
+            {hasFilters && <Badge variant="outline" className="text-xs text-primary border-primary">مفلتر</Badge>}
           </CardTitle>
         </CardHeader>
         <CardContent>
@@ -279,6 +318,12 @@ function CompanyStatement({ company, transfers, allCompanies }: {
     </div>
   );
 }
+
+const TYPE_CATEGORIES: Record<string, string[]> = {
+  transfer: ["تحويلات الشركات"],
+  expense: ["المصاريف العامة", "مصاريف الشركاء", "مصاريف الشاحنات", "رحلات الشاحنات", "سداد ديون خارجية"],
+  company: ["أموال خارجية", "المشاريع"],
+};
 
 function ParentComprehensiveStatement({ parentCompany, companies, transfers, expenses, memberTransfers, members, externalDebts, debtPayments, truckExpenses, trucks, truckTrips, externalFundsList, projectTransactions, projects }: {
   parentCompany: SafeCompany;
@@ -299,6 +344,8 @@ function ParentComprehensiveStatement({ parentCompany, companies, transfers, exp
   const { hasPermission, user } = useAuth();
   const canViewTotals = user?.role !== "app_user" || hasPermission("view_totals");
   const printRef = useRef<HTMLDivElement>(null);
+  const [filterDate, setFilterDate] = useState("");
+  const [filterType, setFilterType] = useState("all");
 
   const allEntries: { date: Date; row: StatementRow }[] = [];
 
@@ -465,8 +512,20 @@ function ParentComprehensiveStatement({ parentCompany, companies, transfers, exp
 
   allEntries.sort((a, b) => a.date.getTime() - b.date.getTime());
 
+  const filteredEntries = allEntries.filter(entry => {
+    if (filterDate) {
+      const entryDate = entry.date.toISOString().slice(0, 10);
+      if (entryDate !== filterDate) return false;
+    }
+    if (filterType !== "all") {
+      const allowed = TYPE_CATEGORIES[filterType] || [];
+      if (!allowed.includes(entry.row.category)) return false;
+    }
+    return true;
+  });
+
   let runningBalance = 0;
-  const rows = allEntries.map(entry => {
+  const rows = filteredEntries.map(entry => {
     runningBalance += entry.row.credit - entry.row.debit;
     return { ...entry.row, balance: runningBalance };
   });
@@ -474,6 +533,14 @@ function ParentComprehensiveStatement({ parentCompany, companies, transfers, exp
   const totalDebit = rows.reduce((sum, r) => sum + r.debit, 0);
   const totalCredit = rows.reduce((sum, r) => sum + r.credit, 0);
   const totalDebts = externalDebts.reduce((sum, d) => sum + Number(d.totalAmount) - Number(d.paidAmount), 0);
+  const hasFilters = !!filterDate || filterType !== "all";
+
+  const TYPE_LABELS: Record<string, string> = {
+    all: "الكل",
+    transfer: "التحويلات",
+    expense: "المصاريف",
+    company: "عمليات الشركات",
+  };
 
   return (
     <div className="space-y-4">
@@ -492,6 +559,48 @@ function ParentComprehensiveStatement({ parentCompany, companies, transfers, exp
         </Button>
       </div>
 
+      <Card className="border-dashed">
+        <CardContent className="p-4">
+          <div className="flex items-center gap-3 flex-wrap">
+            <Filter className="w-4 h-4 text-muted-foreground shrink-0" />
+            <div className="flex items-center gap-2">
+              <label className="text-sm font-medium whitespace-nowrap">فلتر التاريخ:</label>
+              <Input
+                type="date"
+                value={filterDate}
+                onChange={e => setFilterDate(e.target.value)}
+                className="w-44"
+                data-testid="input-filter-date-parent"
+              />
+            </div>
+            <div className="flex items-center gap-2">
+              <label className="text-sm font-medium whitespace-nowrap">نوع العملية:</label>
+              <Select value={filterType} onValueChange={setFilterType}>
+                <SelectTrigger className="w-48" data-testid="select-filter-type">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all" data-testid="option-type-all">الكل</SelectItem>
+                  <SelectItem value="transfer" data-testid="option-type-transfer">التحويلات</SelectItem>
+                  <SelectItem value="expense" data-testid="option-type-expense">المصاريف</SelectItem>
+                  <SelectItem value="company" data-testid="option-type-company">عمليات الشركات</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            {hasFilters && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => { setFilterDate(""); setFilterType("all"); }}
+                data-testid="button-reset-filters-parent"
+              >
+                <RotateCcw className="w-3 h-3 ml-1" />إعادة تعيين
+              </Button>
+            )}
+          </div>
+        </CardContent>
+      </Card>
+
       {canViewTotals && (
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
           <Card><CardContent className="p-4 text-center">
@@ -499,11 +608,11 @@ function ParentComprehensiveStatement({ parentCompany, companies, transfers, exp
             <p className={`text-lg font-bold ${Number(parentCompany.balance) >= 0 ? "text-green-600" : "text-destructive"}`} data-testid="text-parent-balance">{formatAmount(parentCompany.balance)} د.ج</p>
           </CardContent></Card>
           <Card><CardContent className="p-4 text-center">
-            <p className="text-xs text-muted-foreground mb-1">إجمالي الوارد</p>
+            <p className="text-xs text-muted-foreground mb-1">{hasFilters ? "إجمالي الوارد (مفلتر)" : "إجمالي الوارد"}</p>
             <p className="text-lg font-bold text-green-600">{formatAmount(totalCredit)} د.ج</p>
           </CardContent></Card>
           <Card><CardContent className="p-4 text-center">
-            <p className="text-xs text-muted-foreground mb-1">إجمالي الصادر</p>
+            <p className="text-xs text-muted-foreground mb-1">{hasFilters ? "إجمالي الصادر (مفلتر)" : "إجمالي الصادر"}</p>
             <p className="text-lg font-bold text-destructive">{formatAmount(totalDebit)} د.ج</p>
           </CardContent></Card>
           <Card><CardContent className="p-4 text-center">
@@ -517,6 +626,7 @@ function ParentComprehensiveStatement({ parentCompany, companies, transfers, exp
         <div className="header">
           <h1>كشف حساب شامل - {parentCompany.name}</h1>
           <p>تاريخ الطباعة: {new Date().toLocaleDateString("en-US")}</p>
+          {hasFilters && <p>الفلتر المطبق: {filterDate ? `تاريخ: ${filterDate}` : ""}{filterDate && filterType !== "all" ? " | " : ""}{filterType !== "all" ? `نوع: ${TYPE_LABELS[filterType]}` : ""}</p>}
         </div>
         <div className="balance-box">
           <div className="balance-item"><div className="label">رصيد الشركة الأم</div><div className={`value ${Number(parentCompany.balance) >= 0 ? "positive" : "negative"}`}>{formatAmount(parentCompany.balance)} د.ج</div></div>
@@ -533,6 +643,7 @@ function ParentComprehensiveStatement({ parentCompany, companies, transfers, exp
           <CardTitle className="text-base flex items-center gap-2">
             <FileText className="w-4 h-4" />جميع العمليات
             <Badge variant="secondary" className="text-xs">{rows.length} عملية</Badge>
+            {hasFilters && <Badge variant="outline" className="text-xs text-primary border-primary">مفلتر</Badge>}
           </CardTitle>
         </CardHeader>
         <CardContent>
