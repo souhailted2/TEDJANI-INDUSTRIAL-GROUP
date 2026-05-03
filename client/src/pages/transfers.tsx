@@ -245,6 +245,7 @@ export default function Transfers() {
   const [searchQuery, setSearchQuery] = useState("");
   const [filterA, setFilterA] = useState("");
   const [filterB, setFilterB] = useState("");
+  const [searchDate, setSearchDate] = useState("");
 
   const [deleteId, setDeleteId] = useState<string | null>(null);
 
@@ -255,8 +256,9 @@ export default function Transfers() {
     queryKey: ["/api/companies"],
   });
 
+  const transfersQueryKey = searchDate ? `/api/transfers?date=${searchDate}` : "/api/transfers";
   const { data: transfers, isLoading: transfersLoading } = useQuery<Transfer[]>({
-    queryKey: ["/api/transfers"],
+    queryKey: [transfersQueryKey],
   });
 
   const allCompanies = companies || [];
@@ -314,12 +316,13 @@ export default function Transfers() {
     createMutation.mutate({ fromCompanyId: effectiveFromId, toCompanyId, amount, note: note || undefined, date });
   };
 
-  const hasFilters = searchQuery.trim() !== "" || filterA !== "" || filterB !== "";
+  const hasFilters = searchQuery.trim() !== "" || filterA !== "" || filterB !== "" || searchDate !== "";
 
   const resetFilters = () => {
     setSearchQuery("");
     setFilterA("");
     setFilterB("");
+    setSearchDate("");
   };
 
   const loading = companiesLoading || transfersLoading;
@@ -482,14 +485,23 @@ export default function Transfers() {
             <Filter className="w-4 h-4" />
             بحث وفلترة
           </div>
-          <div className="relative">
-            <Search className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+          <div className="flex gap-3 flex-wrap">
+            <div className="relative flex-1 min-w-[200px]">
+              <Search className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+              <Input
+                className="pr-9"
+                placeholder="ابحث باسم الشركة، الملاحظة..."
+                value={searchQuery}
+                onChange={e => setSearchQuery(e.target.value)}
+                data-testid="input-search-transfers"
+              />
+            </div>
             <Input
-              className="pr-9"
-              placeholder="ابحث باسم الشركة، الملاحظة، أو التاريخ..."
-              value={searchQuery}
-              onChange={e => setSearchQuery(e.target.value)}
-              data-testid="input-search-transfers"
+              type="date"
+              className="w-auto min-w-[160px]"
+              value={searchDate}
+              onChange={e => setSearchDate(e.target.value)}
+              data-testid="input-search-date"
             />
           </div>
           <div className="flex items-center gap-3 flex-wrap">

@@ -285,7 +285,8 @@ export async function registerRoutes(
   });
 
   app.get("/api/transfers", isCompanyAuth, requirePermission("transfers"), async (req: any, res) => {
-    const allTransfers = await storage.getTransfers();
+    const date = req.query.date as string | undefined;
+    const allTransfers = await storage.getTransfers(date || undefined);
     res.json(allTransfers);
   });
 

@@ -1,4 +1,4 @@
-import { eq, or, and, gte, lte } from "drizzle-orm";
+import { eq, or, and, gte, lte, isNull, sql } from "drizzle-orm";
 import { db } from "./db";
 import {
   companies, transfers, expenses, expenseCategories, memberTypes, members, memberTransfers,
@@ -43,7 +43,7 @@ export interface IStorage {
   updateCompanyBalance(id: string, balance: string): Promise<Company | undefined>;
   updateCompanyDebt(id: string, debtToParent: string): Promise<Company | undefined>;
 
-  getTransfers(): Promise<Transfer[]>;
+  getTransfers(date?: string): Promise<Transfer[]>;
   getTransfer(id: string): Promise<Transfer | undefined>;
   createTransfer(transfer: InsertTransfer): Promise<Transfer>;
   createApprovedTransfer(data: { fromCompanyId: string; toCompanyId: string; amount: string; currency?: string; note?: string | null; date?: string | null }): Promise<Transfer>;
@@ -295,7 +295,15 @@ export class DatabaseStorage implements IStorage {
     return updated;
   }
 
-  async getTransfers(): Promise<Transfer[]> {
+  async getTransfers(date?: string): Promise<Transfer[]> {
+    if (date) {
+      return db.select().from(transfers).where(
+        or(
+          eq(transfers.date, date),
+          and(isNull(transfers.date), sql`DATE(${transfers.createdAt}) = ${date}`)
+        )
+      );
+    }
     return db.select().from(transfers);
   }
 
