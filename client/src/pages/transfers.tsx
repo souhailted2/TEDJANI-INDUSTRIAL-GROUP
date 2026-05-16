@@ -54,6 +54,7 @@ import {
   Trash2,
   RotateCcw,
   Filter,
+  Pencil,
 } from "lucide-react";
 import type { Company, Transfer } from "@shared/schema";
 
@@ -94,10 +95,12 @@ function TransferCard({
   transfer,
   companies,
   onDeleteRequest,
+  onEditRequest,
 }: {
   transfer: Transfer;
   companies: SafeCompany[];
   onDeleteRequest: (id: string) => void;
+  onEditRequest: (transfer: Transfer) => void;
 }) {
   const { toast } = useToast();
   const { isParent, company: authCompany, user, hasPermission } = useAuth();
@@ -107,6 +110,7 @@ function TransferCard({
   const to = companies.find(c => c.id === transfer.toCompanyId);
   const isReceiver = authCompany?.id === transfer.toCompanyId;
   const canApproveReject = isParent || isReceiver;
+  const isPending = transfer.status === "pending";
 
   const notifyOtherParty = (status: string) => {
     const msg = buildTransferMsg(status, from?.name || "", to?.name || "", transfer.amount, transfer.note);
@@ -177,7 +181,7 @@ function TransferCard({
               <p className="text-lg font-bold whitespace-nowrap" dir="ltr">{formatAmount(transfer.amount)} د.ج</p>
             )}
             <div className="flex gap-2 flex-wrap justify-end">
-              {transfer.status === "pending" && canApproveReject && !isAppUser && (
+              {isPending && canApproveReject && !isAppUser && (
                 <>
                   <Button
                     size="sm"
@@ -212,16 +216,27 @@ function TransferCard({
                   </Button>
                 </a>
               )}
-              {isParent && (
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  className="text-muted-foreground hover:text-destructive"
-                  onClick={() => onDeleteRequest(transfer.id)}
-                  data-testid={`button-delete-transfer-${transfer.id}`}
-                >
-                  <Trash2 className="w-4 h-4" />
-                </Button>
+              {isParent && isPending && (
+                <>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="text-muted-foreground hover:text-blue-600"
+                    onClick={() => onEditRequest(transfer)}
+                    data-testid={`button-edit-transfer-${transfer.id}`}
+                  >
+                    <Pencil className="w-4 h-4" />
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="text-muted-foreground hover:text-destructive"
+                    onClick={() => onDeleteRequest(transfer.id)}
+                    data-testid={`button-delete-transfer-${transfer.id}`}
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </Button>
+                </>
               )}
             </div>
           </div>
@@ -248,6 +263,12 @@ export default function Transfers() {
   const [searchDate, setSearchDate] = useState("");
 
   const [deleteId, setDeleteId] = useState<string | null>(null);
+  const [editTransfer, setEditTransfer] = useState<Transfer | null>(null);
+  const [editFromId, setEditFromId] = useState("");
+  const [editToId, setEditToId] = useState("");
+  const [editAmount, setEditAmount] = useState("");
+  const [editNote, setEditNote] = useState("");
+  const [editDate, setEditDate] = useState("");
 
   const { isParent } = useAuth();
   const { company: authCompany } = useAuth();
@@ -301,6 +322,51 @@ export default function Transfers() {
       toast({ title: "خطأ", description: err.message, variant: "destructive" });
     },
   });
+
+  const editMutation = useMutation({
+    mutationFn: async (data: { id: string; fromCompanyId: string; toCompanyId: string; amount: string; note?: string; date?: string }) => {
+      const { id, ...body } = data;
+      const res = await apiRequest("PATCH", `/api/transfers/${id}`, body);
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/transfers"] });
+      setEditTransfer(null);
+      toast({ title: "تم تعديل التحويل بنجاح" });
+    },
+    onError: (err: Error) => {
+      toast({ title: "خطأ", description: err.message, variant: "destructive" });
+    },
+  });
+
+  const handleOpenEdit = (transfer: Transfer) => {
+    setEditTransfer(transfer);
+    setEditFromId(transfer.fromCompanyId);
+    setEditToId(transfer.toCompanyId);
+    setEditAmount(transfer.amount);
+    setEditNote(transfer.note || "");
+    setEditDate(transfer.date || new Date().toISOString().split("T")[0]);
+  };
+
+  const handleSaveEdit = () => {
+    if (!editTransfer) return;
+    if (!editFromId || !editToId || !editAmount) {
+      toast({ title: "يرجى ملء جميع الحقول المطلوبة", variant: "destructive" });
+      return;
+    }
+    if (editFromId === editToId) {
+      toast({ title: "لا يمكن التحويل لنفس الشركة", variant: "destructive" });
+      return;
+    }
+    editMutation.mutate({
+      id: editTransfer.id,
+      fromCompanyId: editFromId,
+      toCompanyId: editToId,
+      amount: editAmount,
+      note: editNote || undefined,
+      date: editDate,
+    });
+  };
 
   const effectiveFromId = isParent ? fromCompanyId : (authCompany?.id || "");
 
@@ -579,28 +645,28 @@ export default function Transfers() {
               {allTransfers.length === 0
                 ? renderEmpty(<ArrowLeftRight className="w-full h-full" />, "لا توجد تحويلات")
                 : allTransfers.map(t => (
-                    <TransferCard key={t.id} transfer={t} companies={allCompanies} onDeleteRequest={setDeleteId} />
+                    <TransferCard key={t.id} transfer={t} companies={allCompanies} onDeleteRequest={setDeleteId} onEditRequest={handleOpenEdit} />
                   ))}
             </TabsContent>
             <TabsContent value="pending" className="space-y-4 mt-4">
               {pendingTransfers.length === 0
                 ? renderEmpty(<Clock className="w-full h-full" />, "لا توجد تحويلات معلقة")
                 : pendingTransfers.map(t => (
-                    <TransferCard key={t.id} transfer={t} companies={allCompanies} onDeleteRequest={setDeleteId} />
+                    <TransferCard key={t.id} transfer={t} companies={allCompanies} onDeleteRequest={setDeleteId} onEditRequest={handleOpenEdit} />
                   ))}
             </TabsContent>
             <TabsContent value="approved" className="space-y-4 mt-4">
               {approvedTransfers.length === 0
                 ? renderEmpty(<CheckCircle2 className="w-full h-full" />, "لا توجد تحويلات مكتملة")
                 : approvedTransfers.map(t => (
-                    <TransferCard key={t.id} transfer={t} companies={allCompanies} onDeleteRequest={setDeleteId} />
+                    <TransferCard key={t.id} transfer={t} companies={allCompanies} onDeleteRequest={setDeleteId} onEditRequest={handleOpenEdit} />
                   ))}
             </TabsContent>
             <TabsContent value="rejected" className="space-y-4 mt-4">
               {rejectedTransfers.length === 0
                 ? renderEmpty(<XCircle className="w-full h-full" />, "لا توجد تحويلات مرفوضة")
                 : rejectedTransfers.map(t => (
-                    <TransferCard key={t.id} transfer={t} companies={allCompanies} onDeleteRequest={setDeleteId} />
+                    <TransferCard key={t.id} transfer={t} companies={allCompanies} onDeleteRequest={setDeleteId} onEditRequest={handleOpenEdit} />
                   ))}
             </TabsContent>
           </>
@@ -629,6 +695,91 @@ export default function Transfers() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Edit transfer dialog (pending only) */}
+      <Dialog open={!!editTransfer} onOpenChange={open => !open && setEditTransfer(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>تعديل التحويل</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 mt-4">
+            <div className="space-y-2">
+              <Label>الشركة المرسلة</Label>
+              <Select value={editFromId} onValueChange={setEditFromId}>
+                <SelectTrigger data-testid="select-edit-from-company">
+                  <SelectValue placeholder="اختر الشركة المرسلة" />
+                </SelectTrigger>
+                <SelectContent>
+                  {allCompanies.map(c => (
+                    <SelectItem key={c.id} value={c.id}>{c.name}{c.isParent ? " (الأم)" : ""}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label>الشركة المستقبلة</Label>
+              <Select value={editToId} onValueChange={setEditToId}>
+                <SelectTrigger data-testid="select-edit-to-company">
+                  <SelectValue placeholder="اختر الشركة المستقبلة" />
+                </SelectTrigger>
+                <SelectContent>
+                  {allCompanies.filter(c => c.id !== editFromId).map(c => (
+                    <SelectItem key={c.id} value={c.id}>{c.name}{c.isParent ? " (الأم)" : ""}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label>المبلغ (د.ج)</Label>
+              <Input
+                type="number"
+                placeholder="0.00"
+                step="0.01"
+                dir="ltr"
+                value={editAmount}
+                onChange={e => setEditAmount(e.target.value)}
+                data-testid="input-edit-amount"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>ملاحظات (اختياري)</Label>
+              <Textarea
+                placeholder="أضف ملاحظة للتحويل..."
+                value={editNote}
+                onChange={e => setEditNote(e.target.value)}
+                className="resize-none"
+                data-testid="input-edit-note"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>التاريخ</Label>
+              <Input
+                type="date"
+                value={editDate}
+                onChange={e => setEditDate(e.target.value)}
+                data-testid="input-edit-date"
+              />
+            </div>
+            <div className="flex gap-2">
+              <Button
+                className="flex-1"
+                onClick={handleSaveEdit}
+                disabled={editMutation.isPending}
+                data-testid="button-save-edit-transfer"
+              >
+                {editMutation.isPending ? "جاري الحفظ..." : "حفظ التعديلات"}
+              </Button>
+              <Button
+                variant="outline"
+                onClick={() => setEditTransfer(null)}
+                data-testid="button-cancel-edit-transfer"
+              >
+                إلغاء
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

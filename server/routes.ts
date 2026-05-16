@@ -336,13 +336,31 @@ export async function registerRoutes(
     res.status(201).json(transfer);
   });
 
-  // Delete a transfer (relations page — parent only)
+  // Edit a pending transfer (parent only)
+  app.patch("/api/transfers/:id", isCompanyAuth, requirePermission("transfers"), async (req: any, res) => {
+    if (!req.session.isParent) {
+      return res.status(403).json({ message: "فقط الشركة الأم يمكنها تعديل التحويلات" });
+    }
+    const t = await storage.getTransfer(req.params.id as string);
+    if (!t) return res.status(404).json({ message: "التحويل غير موجود" });
+    if (t.status !== "pending") {
+      return res.status(400).json({ message: "لا يمكن تعديل تحويل بعد الموافقة أو الرفض" });
+    }
+    const { fromCompanyId, toCompanyId, amount, note, date } = req.body;
+    const updated = await storage.updateTransfer(t.id, { fromCompanyId, toCompanyId, amount, note, date });
+    res.json(updated);
+  });
+
+  // Delete a transfer (parent only, pending transfers only)
   app.delete("/api/transfers/:id", isCompanyAuth, requirePermission("transfers"), async (req: any, res) => {
     if (!req.session.isParent) {
       return res.status(403).json({ message: "فقط الشركة الأم يمكنها حذف التحويلات" });
     }
     const t = await storage.getTransfer(req.params.id as string);
     if (!t) return res.status(404).json({ message: "التحويل غير موجود" });
+    if (t.status !== "pending") {
+      return res.status(400).json({ message: "لا يمكن حذف تحويل بعد الموافقة أو الرفض" });
+    }
     await storage.deleteTransfer(t.id);
     res.json({ ok: true });
   });
