@@ -491,6 +491,77 @@ export async function registerRoutes(
     res.json(normalized);
   });
 
+  // Debt summary: one row per (pair, currency) with per-currency net and direction.
+  // Source: transfers table (approved only) — aligned with company-relations page.
+  app.get("/api/debt-summary", isCompanyAuth, requirePermission("transfers"), async (req: any, res) => {
+    if (!req.session.isParent) {
+      return res.status(403).json({ message: "فقط الشركة الأم يمكنها عرض ملخص الديون" });
+    }
+
+    const [allCompanies, allTransfers] = await Promise.all([
+      storage.getCompanies(),
+      storage.getTransfers(),
+    ]);
+
+    const approvedTransfers = allTransfers.filter((t) => t.status === "approved");
+    const companyMap = new Map(allCompanies.map((c) => [c.id, c.name]));
+
+    // Map: "smallerId:largerId:currency" -> net (positive = smallerId sent more to largerId)
+    const netMap = new Map<string, number>();
+
+    for (const t of approvedTransfers) {
+      const ids = [t.fromCompanyId, t.toCompanyId].sort();
+      const currency = t.currency || "DZD";
+      const key = `${ids[0]}:${ids[1]}:${currency}`;
+      const current = netMap.get(key) ?? 0;
+      if (t.fromCompanyId === ids[0]) {
+        netMap.set(key, current + Number(t.amount));
+      } else {
+        netMap.set(key, current - Number(t.amount));
+      }
+    }
+
+    interface DebtRow {
+      companyAId: string;
+      companyAName: string;
+      companyBId: string;
+      companyBName: string;
+      currency: string;
+      netAToB: number;
+      absNet: number;
+    }
+
+    const rows: DebtRow[] = [];
+
+    for (const [key, netAToB] of netMap.entries()) {
+      if (Math.abs(netAToB) < 0.001) continue;
+      const parts = key.split(":");
+      const aId = parts[0];
+      const bId = parts[1];
+      const currency = parts[2];
+      rows.push({
+        companyAId: aId,
+        companyAName: companyMap.get(aId) ?? aId,
+        companyBId: bId,
+        companyBName: companyMap.get(bId) ?? bId,
+        currency,
+        netAToB,
+        absNet: Math.abs(netAToB),
+      });
+    }
+
+    // Sort: DZD rows first, then by absNet descending within each currency group
+    const currencyOrder: Record<string, number> = { DZD: 0, USD: 1, CNY: 2 };
+    rows.sort((a, b) => {
+      const ca = currencyOrder[a.currency] ?? 9;
+      const cb = currencyOrder[b.currency] ?? 9;
+      if (ca !== cb) return ca - cb;
+      return b.absNet - a.absNet;
+    });
+
+    res.json(rows);
+  });
+
   app.get("/api/expenses", isCompanyAuth, requirePermission("expenses"), async (req: any, res) => {
     if (!req.session.isParent) {
       return res.status(403).json({ message: "فقط الشركة الأم يمكنها عرض المصاريف" });

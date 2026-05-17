@@ -12,7 +12,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { Building2, ArrowLeftRight, Clock, CheckCircle2, XCircle, TrendingUp, MessageCircle, Phone, Settings, UserPlus, Trash2, User } from "lucide-react";
+import { Building2, ArrowLeftRight, Clock, CheckCircle2, XCircle, TrendingUp, TrendingDown, MessageCircle, Phone, Settings, UserPlus, Trash2, User, Scale, ArrowRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { formatAmount, formatDateSimple, buildWhatsAppLink } from "@/lib/format";
@@ -21,6 +21,16 @@ import { useAuth } from "@/hooks/use-auth";
 import type { Company, Transfer, Operator } from "@shared/schema";
 
 type SafeCompany = Omit<Company, "password">;
+
+type DebtRow = {
+  companyAId: string;
+  companyAName: string;
+  companyBId: string;
+  companyBName: string;
+  currency: string;
+  netAToB: number;
+  absNet: number;
+};
 
 function StatCard({ title, value, icon: Icon, description, loading, gradient }: {
   title: string;
@@ -270,6 +280,11 @@ export default function Dashboard() {
     queryKey: ["/api/transfers"],
   });
 
+  const { data: debtSummary, isLoading: debtSummaryLoading } = useQuery<DebtRow[]>({
+    queryKey: ["/api/debt-summary"],
+    enabled: isParent,
+  });
+
   const parentCompany = companies?.find(c => c.isParent);
   const childCompanies = companies?.filter(c => !c.isParent) || [];
   const pendingTransfers = transfers?.filter(t => t.status === "pending") || [];
@@ -279,6 +294,12 @@ export default function Dashboard() {
   const recentTransfers = [...(transfers || [])].sort((a, b) =>
     new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
   ).slice(0, 5);
+
+  const topDebts = debtSummary?.slice(0, 5) || [];
+  const uniqueDebtPairs = debtSummary
+    ? new Set(debtSummary.map(d => `${d.companyAId}:${d.companyBId}`)).size
+    : 0;
+  const totalDebtDZD = debtSummary?.filter(d => d.currency === "DZD").reduce((acc, d) => acc + d.absNet, 0) || 0;
 
   const loading = companiesLoading || transfersLoading;
 
@@ -409,6 +430,95 @@ export default function Dashboard() {
             )}
           </CardContent>
         </Card>
+      )}
+
+      {isParent && (
+        <div className="space-y-4">
+          <div className="flex items-center gap-2">
+            <Scale className="w-4 h-4 text-muted-foreground" />
+            <h2 className="text-base font-semibold">ملخص ديون الشركات</h2>
+            <Badge variant="secondary" className="text-xs">{uniqueDebtPairs} زوج</Badge>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <StatCard
+              title="أزواج بديون قائمة"
+              value={debtSummaryLoading ? "..." : uniqueDebtPairs}
+              icon={Scale}
+              description="عدد الأزواج من الشركات بينها ديون غير محسومة"
+              loading={debtSummaryLoading}
+              gradient="from-violet-500 to-violet-600"
+            />
+            <StatCard
+              title="إجمالي الديون (د.ج)"
+              value={debtSummaryLoading ? "..." : `${formatAmount(totalDebtDZD)} د.ج`}
+              icon={TrendingDown}
+              description="مجموع الأرصدة الصافية بالدينار الجزائري"
+              loading={debtSummaryLoading}
+              gradient="from-rose-500 to-rose-600"
+            />
+          </div>
+
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base flex items-center gap-2">
+                <TrendingDown className="w-4 h-4" />
+                أكبر الديون القائمة بين الشركات
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              {debtSummaryLoading ? (
+                <div className="space-y-3">
+                  {[1, 2, 3].map(i => <Skeleton key={i} className="h-14 w-full" />)}
+                </div>
+              ) : topDebts.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-8 text-center">
+                  <Scale className="w-10 h-10 text-muted-foreground/30 mb-3" />
+                  <p className="text-sm text-muted-foreground">لا توجد ديون قائمة بين الشركات</p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {topDebts.map((item, idx) => {
+                    // netAToB > 0 means A sent more to B → B owes A
+                    const debtor = item.netAToB > 0 ? item.companyBName : item.companyAName;
+                    const creditor = item.netAToB > 0 ? item.companyAName : item.companyBName;
+                    const sym = item.currency === "USD" ? "$" : item.currency === "CNY" ? "¥" : "د.ج";
+                    return (
+                      <div
+                        key={`${item.companyAId}-${item.companyBId}-${item.currency}`}
+                        className="flex items-center justify-between gap-3 p-4 rounded-md bg-muted/50 flex-wrap"
+                        data-testid={`debt-summary-row-${item.companyAId}-${item.companyBId}-${item.currency}`}
+                      >
+                        <div className="flex items-center gap-3">
+                          <div className="flex items-center justify-center w-7 h-7 rounded-full bg-muted text-muted-foreground text-xs font-bold flex-shrink-0">
+                            {idx + 1}
+                          </div>
+                          <div>
+                            <div className="flex items-center gap-1.5 text-sm">
+                              <span className="font-medium">{debtor}</span>
+                              <ArrowRight className="w-3 h-3 text-muted-foreground flex-shrink-0" />
+                              <span className="font-medium">{creditor}</span>
+                            </div>
+                            <p className="text-[11px] text-muted-foreground mt-0.5">
+                              {debtor} مدينة لـ {creditor}
+                            </p>
+                          </div>
+                        </div>
+                        <div className="text-left">
+                          <p className="font-bold text-sm text-destructive" data-testid={`debt-summary-amount-${item.companyAId}-${item.companyBId}-${item.currency}`} dir="ltr">
+                            {formatAmount(item.absNet)} {sym}
+                          </p>
+                          {item.currency !== "DZD" && (
+                            <Badge variant="outline" className="text-[10px] mt-0.5">{item.currency}</Badge>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </div>
       )}
 
       {isParent && <OperatorManagement />}

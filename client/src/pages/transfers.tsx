@@ -125,6 +125,7 @@ function TransferCard({
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/transfers"] });
       queryClient.invalidateQueries({ queryKey: ["/api/companies"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/debt-summary"] });
       toast({ title: "تمت الموافقة على التحويل بنجاح" });
       notifyOtherParty("approved");
     },
@@ -141,6 +142,7 @@ function TransferCard({
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/transfers"] });
       queryClient.invalidateQueries({ queryKey: ["/api/companies"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/debt-summary"] });
       toast({ title: "تم رفض التحويل" });
       notifyOtherParty("rejected");
     },
@@ -291,6 +293,7 @@ export default function Transfers() {
     },
     onSuccess: (_data, variables) => {
       queryClient.invalidateQueries({ queryKey: ["/api/transfers"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/debt-summary"] });
       const fromC = allCompanies.find(c => c.id === variables.fromCompanyId);
       const toC = allCompanies.find(c => c.id === variables.toCompanyId);
       const msg = buildTransferMsg("pending", fromC?.name || "", toC?.name || "", variables.amount, variables.note);

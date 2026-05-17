@@ -174,6 +174,7 @@ function PairDetail({
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/transfers"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/debt-summary"] });
       setDeleteId(null);
       toast({ title: "تم حذف التحويل بنجاح" });
     },
@@ -189,6 +190,7 @@ function PairDetail({
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/transfers"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/debt-summary"] });
       setAddDialogOpen(false);
       setAddAmount("");
       setAddNote("");
@@ -444,6 +446,7 @@ export default function CompanyRelations() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/transfers"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/debt-summary"] });
       setAddDialogOpen(false);
       setAddFromId("");
       setAddToId("");

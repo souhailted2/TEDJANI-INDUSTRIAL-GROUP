@@ -171,6 +171,7 @@ function PairDetail({
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/intercompany-transfers"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/debt-summary"] });
       setDeleteId(null);
       toast({ title: "تم حذف التحويل بنجاح" });
     },
@@ -319,6 +320,7 @@ export default function IntercompanyPage() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/intercompany-transfers"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/debt-summary"] });
       setDialogOpen(false);
       setFromCompanyId("");
       setToCompanyId("");
