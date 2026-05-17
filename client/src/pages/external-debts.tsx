@@ -28,7 +28,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/use-auth";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { formatAmount, formatDateSimple } from "@/lib/format";
-import { Plus, Trash2, Wallet, User, CreditCard, CheckCircle2, Clock, ChevronDown, ChevronUp } from "lucide-react";
+import { Plus, Trash2, Wallet, User, CreditCard, CheckCircle2, Clock, ChevronDown, ChevronUp, Search } from "lucide-react";
 import type { ExternalDebt, DebtPayment } from "@shared/schema";
 
 function DebtCard({ debt }: { debt: ExternalDebt }) {
@@ -317,6 +317,7 @@ export default function ExternalDebts() {
   const [totalAmount, setTotalAmount] = useState("");
   const [note, setNote] = useState("");
   const [date, setDate] = useState(new Date().toISOString().split("T")[0]);
+  const [searchQuery, setSearchQuery] = useState("");
 
   const { data: debts, isLoading } = useQuery<ExternalDebt[]>({
     queryKey: ["/api/external-debts"],
@@ -359,8 +360,20 @@ export default function ExternalDebts() {
   const allDebts = [...(debts || [])].sort(
     (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
   );
-  const activeDebts = allDebts.filter(d => Number(d.paidAmount) < Number(d.totalAmount));
-  const paidDebts = allDebts.filter(d => Number(d.paidAmount) >= Number(d.totalAmount));
+
+  const filteredDebts = searchQuery.trim()
+    ? allDebts.filter(d => {
+        const q = searchQuery.trim().toLowerCase();
+        return (
+          d.personName.toLowerCase().includes(q) ||
+          (d.phone || "").toLowerCase().includes(q) ||
+          (d.note || "").toLowerCase().includes(q)
+        );
+      })
+    : allDebts;
+
+  const activeDebts = filteredDebts.filter(d => Number(d.paidAmount) < Number(d.totalAmount));
+  const paidDebts = filteredDebts.filter(d => Number(d.paidAmount) >= Number(d.totalAmount));
   const totalOwed = allDebts.reduce((acc, d) => acc + (Number(d.totalAmount) - Number(d.paidAmount)), 0);
 
   return (
@@ -443,6 +456,18 @@ export default function ExternalDebts() {
         </Dialog>
       </div>
 
+      {/* Search bar */}
+      <div className="relative">
+        <Search className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+        <Input
+          className="pr-9"
+          placeholder="ابحث بالاسم أو رقم الهاتف أو الملاحظة..."
+          value={searchQuery}
+          onChange={e => setSearchQuery(e.target.value)}
+          data-testid="input-search-debts"
+        />
+      </div>
+
       {canViewTotals && (
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           <Card>
@@ -493,6 +518,13 @@ export default function ExternalDebts() {
             <Wallet className="w-12 h-12 text-muted-foreground mb-4" />
             <p className="text-muted-foreground">لا توجد ديون خارجية مسجلة</p>
             <p className="text-xs text-muted-foreground mt-1">اضغط على "إضافة دين" لتسجيل دين جديد</p>
+          </CardContent>
+        </Card>
+      ) : filteredDebts.length === 0 ? (
+        <Card>
+          <CardContent className="flex flex-col items-center justify-center py-12 text-center">
+            <Search className="w-10 h-10 text-muted-foreground/50 mb-3" />
+            <p className="text-muted-foreground">لا توجد نتائج لـ "{searchQuery}"</p>
           </CardContent>
         </Card>
       ) : (
